@@ -193,6 +193,41 @@ Pass only an address your runtime vouches for (`clientAddress`,
 overwrites it: an attacker sets those, so every request gets a fresh bucket and
 the limit is decorative while still looking present.
 
+## `leads-kit doctor`
+
+```bash
+npx leads-kit doctor --url https://yoursite.com --token $LEADS_EXPORT_TOKEN
+```
+
+**Every serious risk in this package is a configuration mistake, not a code
+bug.** The code is tested; the wiring is not, because the wiring lives in your
+repo. A route missing `prerender = false` publishes every enquiry as a file on
+a CDN. `checkOrigin` off leaves the delete endpoint reachable from a hostile
+page carrying the visitor's own cookie. `/leads` left in the sitemap invites a
+crawler to a page of personal data.
+
+None of those fail loudly. All of them look completely normal.
+
+It probes a **deployed** site for:
+
+| | |
+| --- | --- |
+| Export routes answering 200 with no credentials | serving enquiries publicly |
+| An `Age` header or a cacheable export | prerendered, or a cache rule matches it |
+| A destructive route answering GET | prefetchers fire those unprompted |
+| A cross-site POST reaching the handler | CSRF is not configured |
+| A forged `Cf-Access-Jwt-Assertion`, an `alg:none` token, a forged cookie | the route trusts the header instead of verifying the signature |
+| The admin page in the sitemap or robots.txt | advertised |
+
+It only reads. The single POST it makes is the CSRF probe, deliberately
+carrying a foreign `Origin` and an all-zero id so it cannot match a record — a
+diagnostic that changes state is one people stop running.
+
+Exits non-zero on a failure, so it belongs in CI after a deploy. And it says
+what it *cannot* see: whether Access actually covers the page (it sits in front,
+so a probe lands on its login screen), whether the KV TTL was set at write time,
+and whether the notifier reaches a real inbox.
+
 ## Spam scoring
 
 Turnstile stops bots. It does not stop a human paid to fill in forms, or a

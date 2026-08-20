@@ -14,6 +14,7 @@ import { toXlsx } from '../src/format/xlsx.js';
 import { toKlaviyoCsv, toMailchimpCsv, toContactsCsv } from '../src/format/contacts.js';
 import type { LeadRecord } from '../src/types.js';
 import { unwrapLeads } from './unwrap.js';
+import { report, runChecks } from './doctor.js';
 
 const BUILDERS: Record<string, { build: (l: LeadRecord[]) => string | Uint8Array; ext: string }> = {
   json: { build: toJson, ext: 'json' },
@@ -41,8 +42,29 @@ function die(message: string): never {
   throw new Error(message);
 }
 
+if (argv[0] === 'doctor') {
+  const origin = flag('url');
+  if (!origin) die('doctor needs --url https://example.com');
+  const checks = await runChecks({
+    origin,
+    token: flag('token') ?? process.env.LEADS_EXPORT_TOKEN,
+    base: flag('base'),
+    page: flag('page'),
+  });
+  process.exit(report(checks));
+}
+
 if (argv[0] !== 'export' || argv.includes('--help')) {
-  console.log(`leads-kit export — pull enquiries from a deployed site
+  console.log(`leads-kit — enquiries in Workers KV
+
+  doctor --url <origin> [--token <token>]
+      probe a DEPLOYED site for the misconfigurations that do not fail loudly:
+      routes serving enquiries anonymously, a prerendered export sitting in a
+      cache, a destructive route answering GET, a cross-site POST reaching the
+      handler, a forged Access assertion being trusted, the admin page in the
+      sitemap. Exits non-zero on a failure, so it belongs in CI.
+
+leads-kit export — pull enquiries from a deployed site
 
   --url <origin>       site to read from, e.g. https://example.com
   --token <token>      bearer token; defaults to $LEADS_EXPORT_TOKEN

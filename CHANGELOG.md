@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.7.0
+
+**Added — `npx leads-kit doctor --url <site>`.** Every serious risk in this
+package is a configuration mistake rather than a code bug: the code is tested,
+the wiring is not, because the wiring lives in someone else's repo. A route
+missing `prerender = false` publishes every enquiry as a file on a CDN;
+`checkOrigin` off leaves delete reachable from a hostile page with the
+visitor's own cookie; `/leads` in the sitemap invites a crawler to personal
+data. None of those fail loudly.
+
+Probes a deployed site for exactly those, including a forged
+`Cf-Access-Jwt-Assertion`, an `alg:none` token and a forged `CF_Authorization`
+cookie — the most common way this feature is built wrong is treating the
+presence of that header as the check.
+
+Read-only. The one POST is the CSRF probe, carrying a foreign `Origin` and an
+all-zero id so it cannot match a record; a diagnostic that changes state is one
+people stop running. Exits non-zero on failure, so it belongs in CI.
+
+Every failure carries a fix, not just a verdict — asserted by a test.
+
+Tested against deliberately misconfigured servers, because a checker that only
+ever passes is worthless and the only way to know it would catch a real problem
+is to give it one.
+
+124 tests, up from 114.
+
 ## 0.6.0
 
 **Added — spam scoring and duplicate detection**, for what Turnstile cannot
