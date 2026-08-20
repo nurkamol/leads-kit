@@ -12,6 +12,7 @@ import { resolve, join } from 'node:path';
 import { toCsv, toJson, toMarkdown, toXml } from '../src/format/records.js';
 import { toKlaviyoCsv, toMailchimpCsv, toContactsCsv } from '../src/format/contacts.js';
 import type { LeadRecord } from '../src/types.js';
+import { unwrapLeads } from './unwrap.js';
 
 const BUILDERS: Record<string, { build: (l: LeadRecord[]) => string; ext: string }> = {
   json: { build: toJson, ext: 'json' },
@@ -94,20 +95,28 @@ if (repo) {
 const formats = (flag('formats') ?? 'json,csv').split(',').map((f) => f.trim()).filter(Boolean);
 for (const f of formats) if (!BUILDERS[f]) die(`unknown format "${f}"`);
 
+/* unwrapLeads throws so it can be tested; the CLI turns that into an exit. */
+const read = (fn: () => LeadRecord[]): LeadRecord[] => {
+  try {
+    return fn();
+  } catch (error) {
+    return die(error instanceof Error ? error.message : String(error));
+  }
+};
+
 let leads: LeadRecord[];
 const from = flag('from');
 if (from) {
-  leads = JSON.parse(readFileSync(resolve(from), 'utf8'));
+  leads = read(() => unwrapLeads(JSON.parse(readFileSync(resolve(from), 'utf8')), from));
 } else {
   const url = flag('url') ?? die('need --url or --from');
   const token = flag('token') ?? process.env.LEADS_EXPORT_TOKEN ?? die('need --token or $LEADS_EXPORT_TOKEN');
   const endpoint = new URL('/api/leads.json', url).toString();
   const res = await fetch(endpoint, { headers: { authorization: `Bearer ${token}` } });
   if (!res.ok) die(`${endpoint} returned ${res.status} ${res.statusText}`);
-  leads = (await res.json()) as LeadRecord[];
+  const body = await res.json();
+  leads = read(() => unwrapLeads(body, endpoint));
 }
-
-if (!Array.isArray(leads)) die('expected an array of leads');
 
 mkdirSync(outDir, { recursive: true });
 const stamp = new Date().toISOString().slice(0, 10);
