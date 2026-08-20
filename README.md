@@ -193,6 +193,47 @@ Pass only an address your runtime vouches for (`clientAddress`,
 overwrites it: an attacker sets those, so every request gets a fresh bucket and
 the limit is decorative while still looking present.
 
+## Spam scoring
+
+Turnstile stops bots. It does not stop a human paid to fill in forms, or a
+script driving a real browser — both pass a challenge exactly as a customer
+does. What separates them is the content: eleven links, a message pasted in
+four seconds, the same body for the ninth time.
+
+```ts
+spam: { elapsedMs, autoSpamAt: 6 }     // or `spam: false` to skip
+```
+
+**It scores. It never blocks, and there is no option that would let it.**
+
+That is the most important sentence here. Every signal has a false-positive
+case involving a real customer: a developer pasting three staging URLs, someone
+typing fast, a person submitting twice because the first reply never came. The
+cost of admitting spam is a message you delete in a second. The cost of
+refusing a client is that you never learn it happened. Those are not
+comparable, so the score goes on the record and a human decides.
+
+`autoSpamAt` is the only lever, and all it does is pre-set `status: 'spam'` so
+the enquiry lands in a filtered view. It is still stored, still exported, still
+there.
+
+Signals: link count, a deliberately short phrase list, shouting, thin or
+unbroken text, and submission speed — the last only when your form actually
+reports it, since inferring it would penalise anyone whose browser behaves
+unusually. A whole message in another script scores **zero**; that is a
+customer, not a signal.
+
+### Duplicates
+
+`findDuplicate` fingerprints the message body and catches two things with one
+mechanism: a spam run pasting the same text, and — far more common — a real
+person double-clicking submit, which otherwise produces two identical records
+a minute apart.
+
+**Messages under 40 characters are exempt.** "Hi, can you help with a website?"
+is a sentence two different customers will both write, and treating the second
+as a duplicate would silently discard a real enquiry.
+
 ## Notifiers
 
 The `Notifier` interface is three lines, so these builders are not there to

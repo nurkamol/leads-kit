@@ -4,6 +4,7 @@ import { DEFAULT_SCHEMA, validate, type LeadSchema } from './validate.js';
 import { verifyTurnstile } from './turnstile.js';
 import { checkRateLimit, type RateLimitOptions } from './ratelimit.js';
 import type { Notifier } from './notify.js';
+import { annotate, findDuplicate, scoreSpam, type SpamOptions } from './spam.js';
 
 /** How the bot challenge went. Recorded on every lead. */
 export type Verification = 'passed' | 'unavailable' | 'unverified' | 'not-configured';
@@ -46,6 +47,19 @@ export interface SubmitOptions {
   env?: string;
   /** Extra fields copied from the payload, truncated. e.g. ['page']. */
   passthrough?: readonly string[];
+  /**
+   * Content-based spam signals, recorded on the record.
+   *
+   * NEVER blocks — there is no option here that would let it. Every signal has
+   * a false-positive case involving a real customer, and the cost of admitting
+   * spam (a message you delete) and of refusing a client (you never find out)
+   * are not comparable. Pass `false` to skip the work entirely.
+   *
+   * `autoSpamAt` is the one lever, and it only pre-sets `status: 'spam'` so
+   * the enquiry lands in a filtered view instead of the main list. It is still
+   * stored, still exported, still there.
+   */
+  spam?: (SpamOptions & { autoSpamAt?: number; duplicateWindowSeconds?: number }) | false;
   /** Where a no-JavaScript browser lands. See the honeypot note below. */
   redirects?: {
     success: string;
@@ -259,6 +273,30 @@ export async function handleSubmit(
   };
   for (const field of options.passthrough ?? ['page']) {
     lead[field] = String(input[field] ?? '').slice(0, 300);
+  }
+
+  /*
+   * Scored AFTER validation and AFTER the record is built, which is the whole
+   * point: by the time this runs, admission has already been decided. There is
+   * no branch below that can return a refusal, and adding one would break the
+   * promise the module header makes.
+   */
+  if (options.spam !== false) {
+    const spamOptions = options.spam ?? {};
+    const score = scoreSpam(input, spamOptions);
+    const duplicate = await findDuplicate(ctx.store, String(values.message ?? ''), {
+      windowSeconds: spamOptions.duplicateWindowSeconds,
+    });
+    Object.assign(lead, annotate(lead, score, duplicate));
+
+    const threshold = spamOptions.autoSpamAt;
+    if (typeof threshold === 'number' && score.score >= threshold) {
+      /* Filed, not refused. It is stored, exported and readable — it simply
+         starts in the spam view rather than the inbox. */
+      lead.status = 'spam';
+      lead.statusAt = receivedAt;
+      lead.statusBy = 'spam-score';
+    }
   }
 
   // ── 6. Store, BEFORE the third party ──────────────────────────────────

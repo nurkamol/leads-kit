@@ -50,6 +50,11 @@ export interface LeadRecord {
   /** When the status last changed, and who changed it. */
   statusAt?: string;
   statusBy?: string;
+  /** Content-based spam signals. Advisory — nothing refuses a lead on these. */
+  spamScore?: number;
+  spamSignals?: string;
+  /** When an identical message was first seen, if it was. */
+  duplicateOf?: string;
   env?: string;
   [key: string]: unknown;
 }

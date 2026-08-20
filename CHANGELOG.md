@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.6.0
+
+**Added — spam scoring and duplicate detection**, for what Turnstile cannot
+catch: a human paid to fill in forms, or a script driving a real browser. Both
+pass a challenge exactly as a customer does; what separates them is content.
+
+**It scores and never blocks, and the API gives you no way to make it.** Every
+signal has a false-positive case involving a real customer, and the cost of
+admitting spam (a message you delete) is not comparable to the cost of refusing
+a client (you never find out). `autoSpamAt` is the only lever and it merely
+pre-sets `status: 'spam'` — the enquiry is still stored, exported and readable.
+
+Scoring runs AFTER validation and after the record is built, so admission is
+already decided before any signal is computed.
+
+Duplicate detection catches a spam run and, far more often, a person
+double-clicking submit. Messages under 40 characters are exempt: "Can you help
+with a website?" is a sentence two customers will both write.
+
+The phrase list is deliberately short. A long one dates badly, is trivially
+evaded, and every entry is a way to insult a customer whose business involves
+the word.
+
+114 tests, up from 97 — and the false-positive cases are tested first, because
+they matter more than the detections.
+
 ## 0.5.0
 
 **Added — notifier builders.** Resend, Brevo, Postmark, MailChannels, Slack, a
