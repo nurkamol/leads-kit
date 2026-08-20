@@ -1,0 +1,390 @@
+---
+/**
+ * /leads — read the enquiries without opening the Cloudflare dashboard.
+ *
+ * ── THIS ROUTE IS 404 UNTIL ACCESS IS PROVEN ──────────────────────────────
+ * It returns personal data, so it fails closed in every direction: no team
+ * domain configured, no audience configured, no token, bad signature, wrong
+ * audience, expired — all of them 404.
+ *
+ * 404 rather than 401 or 403 on purpose. A 403 confirms the route exists and
+ * is worth attacking; a 404 says nothing at all. The people who should be here
+ * arrive through Access and never see it.
+ *
+ * ── SET UP BEFORE THIS PAGE DOES ANYTHING ─────────────────────────────────
+ *   1. Cloudflare Zero Trust → Access → Applications → Add → Self-hosted
+ *      Domain: nurkamol.com   Path: leads
+ *      Policy: Allow → Emails → your address
+ *   2. Copy the Application Audience (AUD) tag from the app's Overview
+ *   3. Set two worker secrets and DEPLOY:
+ *        ACCESS_TEAM_DOMAIN = <your-team>.cloudflareaccess.com
+ *        ACCESS_AUD         = <the AUD tag>
+ *
+ * Until step 3, this page is a 404 even with Access in front — which is the
+ * safe order to fail in.
+ */
+import { verifyAccess } from '../lib/access';
+import { readAllLeads } from '../lib/leads-export';
+import { configValue } from '../lib/runtime';
+import { business } from '../data/business';
+/* The real ramp. This page is a standalone document — it does not use the
+   site's layout — but that is no reason to restate the palette: `npm run tells`
+   fails a component containing raw hex, and it is right to. Importing tokens
+   means a colour change reaches this page too. */
+import '../styles/tokens.css';
+
+export const prerender = false;
+
+const identity = await verifyAccess(
+  Astro.request,
+  configValue('ACCESS_TEAM_DOMAIN'),
+  configValue('ACCESS_AUD'),
+);
+
+if (!identity) {
+  return new Response('Not found\n', {
+    status: 404,
+    headers: { 'content-type': 'text/plain; charset=utf-8', 'x-robots-tag': 'noindex, nofollow' },
+  });
+}
+
+const leads = (await readAllLeads()) ?? [];
+/* Newest first — the opposite of the export, because a person opening this is
+   looking for what just came in, not reading a ledger from the beginning. */
+const rows = [...leads].reverse();
+
+/* Cheap summary from the records already in memory. Nothing here needs a
+   second KV read, which is why it is worth having at all. */
+const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+const stats = {
+  total: rows.length,
+  week: rows.filter((l) => new Date(l.receivedAt).getTime() >= weekAgo).length,
+  unverified: rows.filter((l) => l.verification !== 'passed').length,
+};
+
+const deleted = Astro.url.searchParams.get('deleted') === '1';
+
+const fmt = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 16).replace('T', ' ');
+};
+---
+
+<!doctype html>
+<html lang={business.locale} data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/* Never indexed, never cached by anything in between. */}
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <title>Enquiries — {business.name}</title>
+    <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
+    <style is:inline>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink);
+             font:15px/1.55 'DM Sans', system-ui, sans-serif; }
+      .wrap { max-width:1100px; margin:0 auto; padding:28px 20px 80px; }
+      header { display:flex; flex-wrap:wrap; gap:12px; align-items:baseline;
+               justify-content:space-between; margin-bottom:6px; }
+      h1 { font:600 22px/1.2 'Space Grotesk', system-ui, sans-serif; margin:0; letter-spacing:-.02em; }
+      .who { color:var(--muted); font-size:13px; }
+      .session { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+      /* The buttons here are secondary to the data — same shape as the
+         download controls, no accent fill competing with the content. */
+      .session .btn { min-height:36px; font-size:12px; }
+      .tools { display:flex; gap:10px; flex-wrap:wrap; margin:18px 0 20px; }
+      input[type=search] { flex:1; min-width:220px; background:var(--surface);
+        border:1px solid var(--line); color:var(--ink); border-radius:10px;
+        padding:10px 14px; font:inherit; font-size:14px; }
+      input[type=search]:focus-visible, a:focus-visible, button:focus-visible, details:focus-visible
+        { outline:3px solid var(--accent); outline-offset:2px; }
+      .btn { display:inline-flex; align-items:center; min-height:40px; padding:0 14px;
+        border:1px solid var(--line); border-radius:10px; background:var(--surface);
+        color:var(--ink); font:inherit; font-size:13px; font-weight:600;
+        text-decoration:none; cursor:pointer; }
+      .btn:hover { border-color:var(--accent); }
+      .count { color:var(--muted); font-size:13px; margin-bottom:14px; }
+      .lead { border:1px solid var(--line); border-radius:14px; background:var(--surface);
+        padding:16px 18px; margin-bottom:12px; }
+      .lead[hidden] { display:none; }
+      .top { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; }
+      .name { font-weight:600; font-size:16px; }
+      .when { color:var(--muted); font-size:13px; margin-left:auto; }
+      dl { display:grid; grid-template-columns:max-content 1fr; gap:2px 14px;
+           margin:10px 0 0; font-size:13.5px; }
+      dt { color:var(--muted); } dd { margin:0; }
+      a { color:var(--accent); }
+      .msg { white-space:pre-wrap; margin-top:12px; padding-top:12px;
+             border-top:1px solid var(--line); font-size:14px; }
+      .tag { display:inline-block; font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+             border:1px solid var(--line); border-radius:999px; padding:2px 8px; color:var(--muted); }
+      /* Derived from the ramp rather than picked: a lead that skipped or could
+         not complete the challenge is a caution, not an error. */
+      .tag[data-v="unverified"], .tag[data-v="unavailable"] {
+        color: var(--accent2);
+        border-color: color-mix(in srgb, var(--accent2) 40%, var(--line));
+      }
+      .empty { color:var(--muted); padding:40px 0; }
+      .notice { border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+        background:color-mix(in srgb, var(--accent) 10%, transparent);
+        border-radius:12px; padding:12px 16px; margin:0 0 14px; font-size:13.5px; }
+      .stats { display:flex; flex-wrap:wrap; gap:8px 20px; margin:0 0 10px;
+        color:var(--muted); font-size:13px; }
+      .stats strong { color:var(--ink); font-weight:600; }
+      .stats__warn strong { color:var(--accent2); }
+      .menu { position:relative; }
+      .menu summary { list-style:none; cursor:pointer; user-select:none; }
+      .menu summary::-webkit-details-marker { display:none; }
+      .menu__panel { position:absolute; z-index:5; top:calc(100% + 6px); left:0; min-width:250px;
+        background:var(--surface2); border:1px solid var(--line); border-radius:12px;
+        padding:6px; box-shadow:0 12px 30px rgb(0 0 0 / .28); }
+      .menu__item { display:block; padding:9px 12px; border-radius:8px; font-size:13px;
+        color:var(--ink); text-decoration:none; }
+      .menu__item:hover, .menu__item:focus-visible { background:var(--line); }
+      .menu__warn { margin:6px 6px 2px; padding-top:8px; border-top:1px solid var(--line);
+        color:var(--muted); font-size:11.5px; line-height:1.5; }
+      .menu__warn strong { color:var(--accent2); font-weight:600; }
+      @media (max-width:520px) { .menu__panel { left:auto; right:0; } }
+
+      .danger { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+        margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+      .danger__hint { color:var(--muted); font-size:12px; }
+      /* Outlined, not filled. A destructive control should be findable and
+         unmistakable, not the brightest thing on the page — a red block beside
+         every enquiry turns the list into a minefield. */
+      .btn--danger { min-height:34px; font-size:12px; color:var(--danger);
+        border-color:color-mix(in srgb, var(--danger) 45%, var(--line)); }
+      .btn--danger:hover { border-color:var(--danger);
+        background:color-mix(in srgb, var(--danger) 12%, transparent); }
+      @media (max-width:560px) { dl { grid-template-columns:1fr; } .when { margin-left:0; } }
+
+      /* Screen-hidden, print-only. Declared BEFORE the @media print block:
+         equal specificity means source order decides, and with this rule
+         AFTER it the `display:block` inside the media query lost and the
+         line never printed. Fourth time in this project that source order
+         has quietly swallowed a rule. */
+      .print-note { display:none; color:var(--muted); font-size:12px; margin:0 0 14px; }
+
+      /* ── Print ──────────────────────────────────────────────────────────
+         The dark ground is a screen decision. On paper it costs a cartridge
+         and reads worse, so print inverts to black on white — the browser's
+         "Background graphics" option is off by default anyway, which would
+         otherwise leave light text on nothing.
+
+         Filtered-out leads carry `hidden`, so they are already display:none
+         and do not print. That is the whole point of printing from the page
+         rather than the server: the filter comes with you. */
+      @media print {
+        @page { size: A4; margin: 14mm; }
+        :root { color-scheme: light; }
+        body { background:var(--print-paper); color:var(--print-ink); font-size:10.5pt; }
+        .wrap { max-width:none; padding:0; }
+        /* Controls do not exist on paper. */
+        /* .count duplicates what .print-note already says, with less. */
+        .tools, .session, .count { display:none !important; }
+        .print-note { display:block; }
+        h1 { font-size:16pt; }
+        .lead {
+          border:1px solid var(--print-rule); background:transparent;
+          /* Never split a lead across a page — a message continuing overleaf
+             with no name attached is the thing that makes a printout useless. */
+          break-inside: avoid; page-break-inside: avoid;
+          margin-bottom:4mm; padding:4mm 5mm;
+        }
+        .name { font-size:11.5pt; }
+        .when, dt { color:var(--print-ink-soft); }
+        a { color:var(--print-ink); text-decoration:none; }
+        .tag { border-color:var(--print-rule); color:var(--print-ink-soft); }
+        .msg { border-top:1px solid var(--print-rule-soft); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Enquiries</h1>
+        <div class="session">
+          <span class="who">signed in as {identity.email}</span>
+          <a class="btn" href="/">← Back to site</a>
+          {/*
+            Cloudflare's own logout endpoint on this domain. It clears the
+            CF_Authorization cookie; the next visit to /leads goes back through
+            the Access login.
+
+            It does NOT take a return target — `?returnTo=/` answers 400 —
+            so this cannot both sign out and land you on the homepage. Two
+            buttons rather than one that quietly only does half of what its
+            label claims.
+          */}
+          <a class="btn" href="/cdn-cgi/access/logout">Sign out</a>
+        </div>
+      </header>
+
+      <div class="tools">
+        <input
+          type="search"
+          id="q"
+          placeholder="Filter by name, email, service or message…"
+          aria-label="Filter enquiries"
+          autocomplete="off"
+        />
+        <a class="btn" href="/api/leads.csv" download>Download CSV</a>
+        <a class="btn" href="/api/leads.json" download>Download JSON</a>
+        {/*
+          PDF via the browser's own print engine rather than the server.
+          A Worker has no headless Chrome, so server-side would mean a PDF
+          library or the paid Browser Rendering binding — and neither buys
+          anything here, because printing client-side has a property both
+          lack: it prints WHAT YOU ARE LOOKING AT. Filter to one client, print
+          that. `npm run leads` remains the way to get every lead as a file.
+        */}
+        <button class="btn" type="button" data-print>Save as PDF</button>
+
+        {/*
+          A native <details>, not a JS menu. Four more buttons in the row
+          pushes the filter field off a phone, and these are occasional
+          exports — the everyday ones stay one click away above.
+        */}
+        <details class="menu">
+          <summary class="btn">Contact list ▾</summary>
+          <div class="menu__panel">
+            <a class="menu__item" href="/api/leads/contacts.csv?format=mailchimp" download>
+              Mailchimp CSV
+            </a>
+            <a class="menu__item" href="/api/leads/contacts.csv?format=klaviyo" download>
+              Klaviyo CSV
+            </a>
+            <a class="menu__item" href="/api/leads/contacts.csv" download>
+              Generic CRM CSV
+            </a>
+            {/*
+              This warning is not boilerplate. /privacy tells everyone who uses
+              the form they will not be added to a mailing list, so a file that
+              a mailer can import is one careless click from breaking that
+              promise. The columns carry the same statement into the
+              destination — see src/lib/leads-marketing.ts.
+            */}
+            <p class="menu__warn">
+              One row per address, newest enquiry. <strong>No marketing consent</strong> —
+              import as non-subscribed and do not send campaigns to these people.
+            </p>
+          </div>
+        </details>
+      </div>
+
+      <p class="print-note">
+        {rows.length} enquir{rows.length === 1 ? 'y' : 'ies'} · printed {new Date().toISOString().slice(0, 10)} ·
+        contains personal data — handle and destroy accordingly
+      </p>
+
+      {deleted && (
+        <p class="notice" role="status">Enquiry deleted. The action is recorded in the audit log.</p>
+      )}
+
+      <p class="stats">
+        <span><strong>{stats.total}</strong> total</span>
+        <span><strong>{stats.week}</strong> in the last 7 days</span>
+        {stats.unverified > 0 && (
+          <span class="stats__warn"><strong>{stats.unverified}</strong> not verified by Turnstile</span>
+        )}
+      </p>
+
+      <p class="count" id="count" role="status">{rows.length} enquir{rows.length === 1 ? 'y' : 'ies'}</p>
+
+      {rows.length === 0 && <p class="empty">Nothing yet. Submissions will appear here as they arrive.</p>}
+
+      {rows.map((l) => (
+        <article
+          class="lead"
+          data-hay={`${l.name} ${l.email} ${l.service} ${l.message} ${l.budget} ${l.timeline}`.toLowerCase()}
+        >
+          <div class="top">
+            <span class="name">{l.name || '(no name)'}</span>
+            <span class="tag" data-v={l.verification}>{l.verification ?? 'unknown'}</span>
+            <span class="when">{fmt(l.receivedAt)}</span>
+          </div>
+          <dl>
+            <dt>Email</dt>
+            <dd>
+              <a href={`mailto:${l.email}?subject=${encodeURIComponent('Re: your enquiry')}`}>{l.email}</a>
+            </dd>
+            {l.phone && (<><dt>Phone</dt><dd>{l.phone}</dd></>)}
+            <dt>Service</dt><dd>{l.service || '—'}</dd>
+            <dt>Budget</dt><dd>{l.budget || '—'}</dd>
+            <dt>Timeline</dt><dd>{l.timeline || '—'}</dd>
+            <dt>Page</dt><dd>{l.page || '—'}</dd>
+            <dt>Country</dt><dd>{l.country || '—'}</dd>
+          </dl>
+          <div class="msg">{l.message || '(no message)'}</div>
+          {/*
+            A real form, POSTing to a real endpoint, so it works without
+            JavaScript. The confirm below is an enhancement on top — not the
+            thing standing between a stray click and a permanent deletion.
+            That is the server requiring POST, verifying Access and auditing.
+          */}
+          {/*
+            The trailing slash is load-bearing. astro.config sets
+            trailingSlash:'always', so /api/leads/delete redirects — and a
+            redirected POST is one round-trip and one spec-compliance
+            assumption away from arriving with no body. Paths WITH an
+            extension are exempt, which is why contacts.csv above has none.
+          */}
+          <form class="danger" method="post" action="/api/leads/delete/" data-delete>
+            <input type="hidden" name="id" value={l.id} />
+            <button class="btn btn--danger" type="submit">Delete</button>
+            <span class="danger__hint">Permanent. Recorded in the audit log.</span>
+          </form>
+        </article>
+      ))}
+    </div>
+
+    <script is:inline>
+      /* Filtering only. Everything is already rendered server-side, so this
+         page works with JavaScript off — it just cannot be filtered. */
+      (() => {
+        const q = document.getElementById('q');
+        const count = document.getElementById('count');
+        const leads = [...document.querySelectorAll('.lead')];
+        if (!q) return;
+        document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+
+        /* Name the person in the prompt. "Are you sure?" is a question nobody
+           reads; "Delete the enquiry from Falonchi Pistonchiev?" is one they
+           answer. */
+        /* <details> has no light-dismiss of its own. Without this the panel
+           stays open behind whatever you click next. */
+        const menu = document.querySelector('.menu');
+        if (menu) {
+          document.addEventListener('click', (e) => {
+            if (!menu.contains(e.target)) menu.removeAttribute('open');
+          });
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && menu.hasAttribute('open')) {
+              menu.removeAttribute('open');
+              menu.querySelector('summary')?.focus();
+            }
+          });
+        }
+
+        for (const form of document.querySelectorAll('[data-delete]')) {
+          form.addEventListener('submit', (e) => {
+            const who = form.closest('.lead')?.querySelector('.name')?.textContent?.trim() || 'this enquiry';
+            if (!confirm(`Delete the enquiry from ${who}?\n\nThis cannot be undone.`)) e.preventDefault();
+          });
+        }
+
+        q.addEventListener('input', () => {
+          const term = q.value.trim().toLowerCase();
+          let shown = 0;
+          for (const el of leads) {
+            const hit = !term || el.dataset.hay.includes(term);
+            el.hidden = !hit;
+            if (hit) shown++;
+          }
+          count.textContent = `${shown} of ${leads.length} enquir${leads.length === 1 ? 'y' : 'ies'}`;
+        });
+      })();
+    </script>
+  </body>
+</html>

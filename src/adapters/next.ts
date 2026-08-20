@@ -1,0 +1,53 @@
+import type { LeadsContext } from '../types.js';
+import { handleContacts, handleDelete, handleExport, type ExportOptions } from '../index.js';
+
+/**
+ * Next.js App Router route handlers.
+ *
+ * These receive a `Request` directly, so the adapter is the identity function
+ * with a nicer name. It exists so that a Next project imports something that
+ * says "next" and gets the notes below with it.
+ *
+ * Two things Next does NOT do for you that Astro does:
+ *
+ *   · No CSRF default. Astro ships `security.checkOrigin`; Next has no
+ *     equivalent, so the delete route is reachable cross-site with the
+ *     visitor's cookie unless you check `Origin` yourself in middleware.
+ *     There is a sample in the plugin templates. Do not skip it.
+ *   · No automatic dynamic rendering for these. Set
+ *     `export const dynamic = 'force-dynamic'` on the route, or Next may cache
+ *     the response — a cached enquiry export is a public one.
+ *
+ * Use the Node runtime, not Edge, if your store needs a Node driver. The
+ * handlers themselves are web-standard and run on either.
+ */
+export const nextExport = (ctx: LeadsContext, options?: ExportOptions) => (request: Request) =>
+  handleExport(request, ctx, options);
+
+export const nextContacts = (ctx: LeadsContext) => (request: Request) =>
+  handleContacts(request, ctx);
+
+export const nextDelete = (ctx: LeadsContext, redirectTo?: string) => (request: Request) =>
+  handleDelete(request, ctx, { redirectTo });
+
+/**
+ * The origin check Next does not give you.
+ *
+ * Returns a 403 Response when a state-changing request came from somewhere
+ * else, or null when it is fine to proceed. A request with NO Origin and no
+ * Referer is refused rather than allowed: same-origin form posts from a
+ * browser always carry one, so the empty case is a non-browser client, and
+ * those should be using the bearer token — which is not cookie-borne and so
+ * is not subject to this attack in the first place.
+ */
+export function checkOrigin(request: Request, allowedOrigin: string): Response | null {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return null;
+  if (request.headers.get('authorization')) return null;
+
+  const origin =
+    request.headers.get('origin') ??
+    (request.headers.get('referer') ? new URL(request.headers.get('referer')!).origin : null);
+
+  if (origin === allowedOrigin) return null;
+  return new Response('Cross-site POST form submissions are forbidden\n', { status: 403 });
+}

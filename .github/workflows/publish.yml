@@ -1,0 +1,58 @@
+name: publish
+
+# Tag-driven. `npm version patch && git push --follow-tags` is the whole
+# release ritual; nothing publishes off a plain push to main, so a merge can
+# never surprise you with a version on the registry.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # The OIDC token npm exchanges for short-lived publish rights. Without
+      # this line the job has no identity to present and trusted publishing
+      # fails with a generic auth error that reads like a bad token.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      # setup-node pins whatever npm ships with Node 22, which is 10.x.
+      # Trusted publishing needs npm >= 11.5.1 — on an older one the job
+      # authenticates with nothing, and the error names the token rather than
+      # the version, which is a slow afternoon.
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+      # Refuse to publish a tag that disagrees with package.json. Getting this
+      # wrong publishes the previous version under a new tag and the mismatch
+      # is invisible until someone installs it.
+      - name: Tag must match the version in package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "tag v$TAG but package.json says $PKG" >&2
+            exit 1
+          fi
+
+      # No NODE_AUTH_TOKEN, no NPM_TOKEN secret. npm exchanges the workflow's
+      # OIDC identity for a short-lived credential, and stamps the tarball with
+      # a provenance attestation tying it to this commit and this workflow —
+      # so anyone can verify the published artefact came from this repo rather
+      # than from someone's laptop.
+      - run: npm publish
