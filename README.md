@@ -196,8 +196,13 @@ the limit is decorative while still looking present.
 ## `leads-kit doctor`
 
 ```bash
-npx leads-kit doctor --url https://yoursite.com --token $LEADS_EXPORT_TOKEN
+npx leads-kit doctor --url https://yoursite.com
 ```
+
+It reads `LEADS_EXPORT_TOKEN` from the environment or a local `.env`. **Do not
+pass it as a flag** — `npm run` echoes the command it runs, so the token would
+land in your scrollback, in any CI log, and in `ps` output for every process on
+the machine.
 
 **Every serious risk in this package is a configuration mistake, not a code
 bug.** The code is tested; the wiring is not, because the wiring lives in your

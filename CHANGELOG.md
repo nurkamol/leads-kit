@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.1
+
+**Fixed — the documented way to run `doctor` printed your token.**
+`npm run doctor -- --token $LEADS_EXPORT_TOKEN` works, and `npm run` echoes the
+command it is about to run, so the secret lands in the terminal, the
+scrollback, any CI log, and `ps` output for every other process on the machine.
+Found by running it once and reading my own output.
+
+`doctor` now reads `LEADS_EXPORT_TOKEN` from the environment or a local `.env`.
+`--token` still exists for a throwaway value, but the flag is no longer the
+documented path, because documenting a flag is what invites the mistake.
+
 ## 0.7.0
 
 **Added — `npx leads-kit doctor --url <site>`.** Every serious risk in this

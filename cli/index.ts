@@ -42,12 +42,41 @@ function die(message: string): never {
   throw new Error(message);
 }
 
+/**
+ * Read one key out of a local .env, without a dotenv dependency.
+ *
+ * ── WHY THIS MATTERS MORE THAN IT LOOKS ───────────────────────────────────
+ * `npm run doctor -- --token $LEADS_EXPORT_TOKEN` PRINTS THE TOKEN. npm echoes
+ * the command it is about to run, so the secret lands in the terminal, in the
+ * scrollback, in any CI log, and in whatever anyone pastes when asking for
+ * help. It is also visible in `ps` to every other process on the machine for
+ * as long as the command runs.
+ *
+ * Documenting a flag was the mistake; a flag that exists invites exactly that.
+ * `--token` still works for a throwaway value, but the documented path reads
+ * the environment or .env so no secret is ever typed on a command line.
+ */
+function fromEnvFile(key: string): string | undefined {
+  for (const file of ['.env', '.dev.vars']) {
+    try {
+      const line = readFileSync(resolve(file), 'utf8')
+        .split('\n')
+        .find((l) => l.trim().startsWith(`${key}=`));
+      const value = line?.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
+      if (value) return value;
+    } catch {
+      /* No such file here. Try the next. */
+    }
+  }
+  return undefined;
+}
+
 if (argv[0] === 'doctor') {
   const origin = flag('url');
   if (!origin) die('doctor needs --url https://example.com');
   const checks = await runChecks({
     origin,
-    token: flag('token') ?? process.env.LEADS_EXPORT_TOKEN,
+    token: flag('token') ?? process.env.LEADS_EXPORT_TOKEN ?? fromEnvFile('LEADS_EXPORT_TOKEN'),
     base: flag('base'),
     page: flag('page'),
   });
@@ -57,8 +86,12 @@ if (argv[0] === 'doctor') {
 if (argv[0] !== 'export' || argv.includes('--help')) {
   console.log(`leads-kit — enquiries in Workers KV
 
-  doctor --url <origin> [--token <token>]
-      probe a DEPLOYED site for the misconfigurations that do not fail loudly:
+  doctor --url <origin>
+      Reads LEADS_EXPORT_TOKEN from the environment or .env. Do NOT pass it as
+      a flag -- npm echoes the command it runs, so the token would land in your
+      scrollback, your CI log, and in ps output for every process on the box.
+
+      Probes a DEPLOYED site for the misconfigurations that do not fail loudly:
       routes serving enquiries anonymously, a prerendered export sitting in a
       cache, a destructive route answering GET, a cross-site POST reaching the
       handler, a forged Access assertion being trusted, the admin page in the
