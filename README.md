@@ -48,17 +48,17 @@ import { astroExport } from '@nurkamol/leads-kit/astro';
 
 export const prerender = false;   // or you publish a CDN file of everyone's enquiries
 
-export const GET = astroExport(
-  {
-    store: kvStore(locals.runtime.env.LEADS),
-    token: locals.runtime.env.LEADS_EXPORT_TOKEN,
-    access: {
-      teamDomain: locals.runtime.env.ACCESS_TEAM_DOMAIN,
-      aud: locals.runtime.env.ACCESS_AUD,
-    },
-  },
-  { format: 'csv' },
-);
+// A FUNCTION, not an object. On Cloudflare the bindings live at
+// locals.runtime.env, which only exists per request — build the context at
+// module scope and there is no KV namespace to reach.
+export const GET = astroExport(({ locals }) => {
+  const env = locals.runtime.env;
+  return {
+    store: kvStore(env.LEADS),
+    token: env.LEADS_EXPORT_TOKEN,
+    access: { teamDomain: env.ACCESS_TEAM_DOMAIN, aud: env.ACCESS_AUD },
+  };
+}, { format: 'csv' });
 ```
 
 ### Next (App Router)
@@ -69,6 +69,15 @@ import { kvStore } from '@nurkamol/leads-kit';
 import { checkOrigin, nextDelete } from '@nurkamol/leads-kit/next';
 
 export const dynamic = 'force-dynamic';
+
+const ctx = () => ({
+  store: kvStore(getKvBinding()),
+  token: process.env.LEADS_EXPORT_TOKEN,
+  access: {
+    teamDomain: process.env.ACCESS_TEAM_DOMAIN,
+    aud: process.env.ACCESS_AUD,
+  },
+});
 
 export async function POST(request: Request) {
   // Next has no CSRF default. Without this, a hostile page can POST here

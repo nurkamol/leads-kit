@@ -21,14 +21,27 @@ import { handleContacts, handleDelete, handleExport, type ExportOptions } from '
  * Use the Node runtime, not Edge, if your store needs a Node driver. The
  * handlers themselves are web-standard and run on either.
  */
-export const nextExport = (ctx: LeadsContext, options?: ExportOptions) => (request: Request) =>
-  handleExport(request, ctx, options);
+/**
+ * A context, or something that produces one from the request.
+ *
+ * Next reads its env from `process.env`, which IS available at module scope,
+ * so the plain-object form is usually fine here — unlike Astro on Cloudflare.
+ * The factory is accepted anyway, for parity and for stores that need
+ * per-request state.
+ */
+export type ContextSource = LeadsContext | ((request: Request) => LeadsContext);
 
-export const nextContacts = (ctx: LeadsContext) => (request: Request) =>
-  handleContacts(request, ctx);
+const resolve = (source: ContextSource, request: Request): LeadsContext =>
+  typeof source === 'function' ? source(request) : source;
 
-export const nextDelete = (ctx: LeadsContext, redirectTo?: string) => (request: Request) =>
-  handleDelete(request, ctx, { redirectTo });
+export const nextExport = (source: ContextSource, options?: ExportOptions) => (request: Request) =>
+  handleExport(request, resolve(source, request), options);
+
+export const nextContacts = (source: ContextSource) => (request: Request) =>
+  handleContacts(request, resolve(source, request));
+
+export const nextDelete = (source: ContextSource, redirectTo?: string) => (request: Request) =>
+  handleDelete(request, resolve(source, request), { redirectTo });
 
 /**
  * The origin check Next does not give you.
