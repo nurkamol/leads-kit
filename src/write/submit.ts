@@ -49,8 +49,19 @@ export interface SubmitOptions {
   /** Where a no-JavaScript browser lands. See the honeypot note below. */
   redirects?: {
     success: string;
-    /** `?invalid=` is appended with the failing field names. */
-    invalid: string;
+    /**
+     * Where a failed submission goes.
+     *
+     * A string has the failing field names appended to it, so
+     * `'/?invalid='` becomes `/?invalid=name,email`.
+     *
+     * A FUNCTION receives them and returns the whole URL — which is what you
+     * need whenever anything must follow the field list. An anchor is the
+     * common case: `/?invalid=name,email` lands at the top of the page with
+     * the form and its error state below the fold, so the visitor sees a page
+     * that appears merely to have scrolled rather than one reporting an error.
+     */
+    invalid: string | ((fields: string[]) => string);
     /** Where CAUGHT SPAM goes. Must NOT be `success` — see below. */
     honeypot: string;
   };
@@ -66,6 +77,15 @@ const json = (body: unknown, status: number) =>
 
 const seeOther = (location: string) =>
   new Response(null, { status: 303, headers: { location, 'cache-control': 'no-store' } });
+
+/** Build the invalid-redirect URL from either form of the option. */
+const invalidUrl = (
+  invalid: string | ((fields: string[]) => string),
+  fields: string[],
+): string =>
+  typeof invalid === 'function'
+    ? invalid(fields)
+    : `${invalid}${encodeURIComponent(fields.join(','))}`;
 
 /**
  * A native form POST must not land on a page of raw JSON. The enhanced path
@@ -193,7 +213,7 @@ export async function handleSubmit(
     if (!token) {
       if (!acceptWithout) {
         return html && options.redirects
-          ? seeOther(`${options.redirects.invalid}challenge`)
+          ? seeOther(invalidUrl(options.redirects.invalid, ['challenge']))
           : json({ ok: false, errors: { challenge: 'Complete the verification and try again.' } }, 422);
       }
       verification = 'unverified';
@@ -208,7 +228,7 @@ export async function handleSubmit(
            exists for. An expired token is the common HUMAN one, so the message
            has to be recoverable rather than an accusation. */
         return html && options.redirects
-          ? seeOther(`${options.redirects.invalid}challenge`)
+          ? seeOther(invalidUrl(options.redirects.invalid, ['challenge']))
           : json({ ok: false, errors: { challenge: 'Verification failed. Please try again.' } }, 422);
       }
       /* Learnt nothing. Let it through and mark it. */
@@ -220,7 +240,7 @@ export async function handleSubmit(
   const { ok, errors, values } = validate(input, options.schema ?? DEFAULT_SCHEMA);
   if (!ok) {
     return html && options.redirects
-      ? seeOther(`${options.redirects.invalid}${encodeURIComponent(Object.keys(errors).join(','))}`)
+      ? seeOther(invalidUrl(options.redirects.invalid, Object.keys(errors)))
       : json({ ok: false, errors }, 422);
   }
 

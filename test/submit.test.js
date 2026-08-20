@@ -293,3 +293,34 @@ test('submit returns 429 once the limit is hit', async () => {
   assert.equal((await handleSubmit(post(good), { store }, opts)).status, 200);
   assert.equal((await handleSubmit(post(good), { store }, opts)).status, 429);
 });
+
+test('the invalid redirect can be a function, so an anchor survives', async () => {
+  // A string form gives /?invalid=name,email — which lands at the top of the
+  // page with the form and its error state below the fold, so the visitor sees
+  // something that looks like it merely scrolled rather than an error.
+  const res = await handleSubmit(
+    post({ name: 'A', email: 'nope' }, { headers: { accept: 'text/html' } }),
+    { store: fakeStore() },
+    {
+      redirects: {
+        ...REDIRECTS,
+        invalid: (fields) => `/?invalid=${encodeURIComponent(fields.join(','))}#contact`,
+      },
+    },
+  );
+  assert.equal(res.status, 303);
+  assert.match(res.headers.get('location'), /#contact$/);
+  assert.match(decodeURIComponent(res.headers.get('location')), /name,email/);
+});
+
+test('a failed challenge also honours the function form', async () => {
+  const res = await withSiteverify(
+    () => new Response(JSON.stringify({ success: false, 'error-codes': ['invalid-input-response'] })),
+    () => handleSubmit(
+      post({ ...good, 'cf-turnstile-response': 'bogus' }, { headers: { accept: 'text/html' } }),
+      { store: fakeStore() },
+      { turnstile: { secret: 'x' }, redirects: { ...REDIRECTS, invalid: (f) => `/?invalid=${f[0]}#contact` } },
+    ),
+  );
+  assert.equal(res.headers.get('location'), '/?invalid=challenge#contact');
+});

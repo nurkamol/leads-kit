@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1
+
+**Fixed** — `redirects.invalid` could not carry an anchor. It was a string with
+the failing field names appended, so `/?invalid=` produced
+`/?invalid=name,email` and nothing could follow. On a single-page site whose
+form is a section, that lands the visitor at the TOP of the page with the form
+and its error state below the fold — a failed submission looks like a page that
+merely scrolled.
+
+Found migrating nurkamol.com onto the package, where the hand-written route it
+was extracted from had appended `#contact` all along.
+
+`invalid` now also accepts `(fields: string[]) => string`, returning the whole
+URL. The string form is unchanged.
+
 ## 0.3.0
 
 **Added — the write path.** `handleSubmit` accepts a submission end to end:
