@@ -9,6 +9,22 @@ that will not quietly turn an enquiry into a mailing-list subscriber.
 npm install @nurkamol/leads-kit
 ```
 
+## Start here
+
+[**docs/getting-started.md**](docs/getting-started.md) — a complete path for
+Astro on Cloudflare and for Next.js: bindings, the context module, every route,
+the two Astro settings that matter, Cloudflare Access, and how to check it
+afterwards. Every code block in it is typechecked against this package's real
+API, so it cannot drift into being subtly wrong.
+
+Or let the plugin do the fitting:
+
+```
+/plugin marketplace add nurkamol/leads-kit
+/plugin install leads-view
+/leads-view
+```
+
 ## What it is
 
 Two things, from one repo:

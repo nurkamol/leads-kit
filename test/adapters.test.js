@@ -46,3 +46,36 @@ test('the factory is called per request, not once', async () => {
   await GET(req());
   assert.equal(calls, 2, 'a cached context would hold a stale binding from a previous request');
 });
+
+test('an unbound store is a 503 from every adapter, not a crash', async () => {
+  // leadsContext() returns null when the KV binding is missing. Before this,
+  // every route had to write `!` or the same four-line guard — and `!` on a
+  // value that is genuinely sometimes null turns a missing binding into a
+  // stack trace about `undefined` instead of the one message that says what
+  // to fix.
+  const { astroExport, astroDelete, astroStatus, astroLeadsPage } = await import('../dist/src/adapters/astro.js');
+  const { nextExport, nextLeadsPage } = await import('../dist/src/adapters/next.js');
+
+  const req = () => new Request('https://x.test/api/leads.csv', { headers: { authorization: 'Bearer s' } });
+  const nothing = () => null;
+
+  for (const [name, res] of [
+    ['astroExport', await astroExport(nothing)({ request: req() })],
+    ['astroLeadsPage', await astroLeadsPage(nothing)({ request: req() })],
+    ['astroDelete', await astroDelete(nothing)({ request: new Request('https://x/d', { method: 'POST' }) })],
+    ['astroStatus', await astroStatus(nothing)({ request: new Request('https://x/s', { method: 'POST' }) })],
+    ['nextExport', await nextExport(nothing)(req())],
+    ['nextLeadsPage', await nextLeadsPage(nothing)(req())],
+  ]) {
+    assert.equal(res.status, 503, name);
+    assert.match(await res.text(), /not bound/, name);
+  }
+});
+
+test('a bound store still works through the same path', async () => {
+  const { astroExport } = await import('../dist/src/adapters/astro.js');
+  const res = await astroExport(() => ({ store, token: 'secret' }), { format: 'csv' })({
+    request: new Request('https://x.test/api/leads.csv', { headers: { authorization: 'Bearer secret' } }),
+  });
+  assert.equal(res.status, 200);
+});

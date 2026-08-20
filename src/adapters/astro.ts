@@ -45,30 +45,58 @@ export interface AstroLike {
   locals?: unknown;
 }
 
-/** A context, or something that produces one from the request context. */
-export type ContextSource<C> = LeadsContext | ((context: C) => LeadsContext);
+/**
+ * A context, or something that produces one from the request context.
+ *
+ * The factory may return **null**, and every adapter answers 503 when it does.
+ *
+ * That is not politeness, it removes a footgun. A `leadsContext()` that cannot
+ * find its KV binding has to return something, and the honest something is
+ * null — which then forced every single route to write either a `!` assertion
+ * or the same four-line guard. `!` on a value that is genuinely sometimes null
+ * is how a missing binding becomes a stack trace about `undefined` instead of
+ * "lead storage is not bound", which is the one message that would have said
+ * what to fix.
+ */
+export type ContextSource<C> = LeadsContext | ((context: C) => LeadsContext | null);
 
-const resolve = <C>(source: ContextSource<C>, context: C): LeadsContext =>
+const resolve = <C>(source: ContextSource<C>, context: C): LeadsContext | null =>
   typeof source === 'function' ? source(context) : source;
+
+/** The answer when the store is not bound. A deployment problem, so it reads like one. */
+const unbound = () =>
+  new Response('Lead storage is not bound.\n', {
+    status: 503,
+    headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+  });
+
+const withCtx = <C, T>(
+  source: ContextSource<C>,
+  context: C,
+  run: (ctx: LeadsContext) => Promise<Response> | Response,
+): Promise<Response> | Response => {
+  const ctx = resolve(source, context);
+  return ctx ? run(ctx) : unbound();
+};
 
 export const astroExport =
   (source: ContextSource<AstroLike>, options?: ExportOptions) => (c: AstroLike) =>
-    handleExport(c.request, resolve(source, c), options);
+    withCtx(source, c, (ctx) => handleExport(c.request, ctx, options));
 
 export const astroContacts = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
-  handleContacts(c.request, resolve(source, c));
+  withCtx(source, c, (ctx) => handleContacts(c.request, ctx));
 
 export const astroDelete = (source: ContextSource<AstroLike>, redirectTo?: string) => (c: AstroLike) =>
-  handleDelete(c.request, resolve(source, c), { redirectTo });
+  withCtx(source, c, (ctx) => handleDelete(c.request, ctx, { redirectTo }));
 
 export const astroSubjectAccess = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
-  handleSubjectAccess(c.request, resolve(source, c));
+  withCtx(source, c, (ctx) => handleSubjectAccess(c.request, ctx));
 
 export const astroErasure = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
-  handleErasure(c.request, resolve(source, c));
+  withCtx(source, c, (ctx) => handleErasure(c.request, ctx));
 
 export const astroAudit = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
-  handleAudit(c.request, resolve(source, c));
+  withCtx(source, c, (ctx) => handleAudit(c.request, ctx));
 
 /**
  * The submit route.
@@ -81,13 +109,12 @@ export const astroAudit = (source: ContextSource<AstroLike>) => (c: AstroLike) =
 export const astroSubmit =
   (source: ContextSource<AstroLike & { clientAddress?: string }>, options?: SubmitOptions) =>
   (c: AstroLike & { clientAddress?: string }) =>
-    handleSubmit(c.request, resolve(source, c), {
-      clientAddress: c.clientAddress,
-      ...options,
-    });
+    withCtx(source, c, (ctx) =>
+      handleSubmit(c.request, ctx, { clientAddress: c.clientAddress, ...options }),
+    );
 
 export const astroStatus = (source: ContextSource<AstroLike>, redirectTo?: string) => (c: AstroLike) =>
-  handleStatus(c.request, resolve(source, c), { redirectTo });
+  withCtx(source, c, (ctx) => handleStatus(c.request, ctx, { redirectTo }));
 
 /**
  * The bundled leads page.
@@ -99,4 +126,4 @@ export const astroStatus = (source: ContextSource<AstroLike>, redirectTo?: strin
  */
 export const astroLeadsPage =
   (source: ContextSource<AstroLike>, options?: LeadsPageHandlerOptions) => (c: AstroLike) =>
-    handleLeadsPage(c.request, resolve(source, c), options);
+    withCtx(source, c, (ctx) => handleLeadsPage(c.request, ctx, options));

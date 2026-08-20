@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.2
+
+**Added — `docs/getting-started.md`.** A complete path for Astro on Cloudflare
+and for Next.js. Every TypeScript block in it is extracted and typechecked
+against the package's real API, which is how the next item was found.
+
+**Changed — a context factory may return `null`, and every adapter answers
+503.** `leadsContext()` has to return something when the KV binding is missing,
+and the honest something is null — which previously forced every route to write
+either a `!` assertion or the same four-line guard. `!` on a value that is
+genuinely sometimes null turns a missing binding into a stack trace about
+`undefined`, instead of "Lead storage is not bound", which is the one message
+that says what to fix.
+
+So `astroExport(leadsContext, …)` is now the whole route. Passing a plain
+context object still works, and nothing that compiled before stops compiling.
+
 ## 0.8.1
 
 **Added — `docs/using-the-leads-page.md`**, written for whoever reads the

@@ -42,19 +42,35 @@ import {
  * The factory is accepted anyway, for parity and for stores that need
  * per-request state.
  */
-export type ContextSource = LeadsContext | ((request: Request) => LeadsContext);
+export type ContextSource = LeadsContext | ((request: Request) => LeadsContext | null);
 
-const resolve = (source: ContextSource, request: Request): LeadsContext =>
+const resolve = (source: ContextSource, request: Request): LeadsContext | null =>
   typeof source === 'function' ? source(request) : source;
 
+/** See the note in the Astro adapter: null means "not bound", and that is a 503. */
+const unbound = () =>
+  new Response('Lead storage is not bound.\n', {
+    status: 503,
+    headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+  });
+
+const withCtx = <T>(
+  source: ContextSource,
+  request: Request,
+  run: (ctx: LeadsContext) => Promise<Response> | Response,
+): Promise<Response> | Response => {
+  const ctx = resolve(source, request);
+  return ctx ? run(ctx) : unbound();
+};
+
 export const nextExport = (source: ContextSource, options?: ExportOptions) => (request: Request) =>
-  handleExport(request, resolve(source, request), options);
+  withCtx(source, request, (ctx) => handleExport(request, ctx, options));
 
 export const nextContacts = (source: ContextSource) => (request: Request) =>
-  handleContacts(request, resolve(source, request));
+  withCtx(source, request, (ctx) => handleContacts(request, ctx));
 
 export const nextDelete = (source: ContextSource, redirectTo?: string) => (request: Request) =>
-  handleDelete(request, resolve(source, request), { redirectTo });
+  withCtx(source, request, (ctx) => handleDelete(request, ctx, { redirectTo }));
 
 /**
  * The origin check Next does not give you.
@@ -79,13 +95,13 @@ export function checkOrigin(request: Request, allowedOrigin: string): Response |
 }
 
 export const nextSubjectAccess = (source: ContextSource) => (request: Request) =>
-  handleSubjectAccess(request, resolve(source, request));
+  withCtx(source, request, (ctx) => handleSubjectAccess(request, ctx));
 
 export const nextErasure = (source: ContextSource) => (request: Request) =>
-  handleErasure(request, resolve(source, request));
+  withCtx(source, request, (ctx) => handleErasure(request, ctx));
 
 export const nextAudit = (source: ContextSource) => (request: Request) =>
-  handleAudit(request, resolve(source, request));
+  withCtx(source, request, (ctx) => handleAudit(request, ctx));
 
 /**
  * The submit route.
@@ -97,12 +113,12 @@ export const nextAudit = (source: ContextSource) => (request: Request) =>
  * arbitrary proxy that same header is whatever the client typed.
  */
 export const nextSubmit = (source: ContextSource, options?: SubmitOptions) => (request: Request) =>
-  handleSubmit(request, resolve(source, request), options);
+  withCtx(source, request, (ctx) => handleSubmit(request, ctx, options));
 
 export const nextStatus = (source: ContextSource, redirectTo?: string) => (request: Request) =>
-  handleStatus(request, resolve(source, request), { redirectTo });
+  withCtx(source, request, (ctx) => handleStatus(request, ctx, { redirectTo }));
 
 /** The bundled leads page. Set `export const dynamic = 'force-dynamic'`. */
 export const nextLeadsPage =
   (source: ContextSource, options?: LeadsPageHandlerOptions) => (request: Request) =>
-    handleLeadsPage(request, resolve(source, request), options);
+    withCtx(source, request, (ctx) => handleLeadsPage(request, ctx, options));
