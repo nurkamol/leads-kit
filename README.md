@@ -75,6 +75,13 @@ owner sees it, so "works the moment it is installed" is worth more than
 "matches the brand exactly". On a public page the trade runs the other way,
 which is why nothing else in this package renders anything.
 
+### Hand this to whoever reads the enquiries
+
+[`docs/using-the-leads-page.md`](docs/using-the-leads-page.md) is written for
+them rather than for you: what the statuses mean, why "not verified" is not an
+accusation, why the contact-list export is not permission to email anyone, and
+what to do when someone asks for their data. Copy it into the handover.
+
 ### If you want the markup
 
 `renderLeadsPage(leads, options)` returns the HTML string, and the plugin still

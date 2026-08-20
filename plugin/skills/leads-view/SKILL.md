@@ -53,6 +53,25 @@ The traps in this feature, collected. Every one of them shipped green.
 - **Mailchimp text merge fields cap near 255 characters** and truncate quietly,
   so a long enquiry message does not belong in an audience import.
 
+## The page
+
+- **Prefer the bundled page** (`handleLeadsPage` / `astroLeadsPage`) over
+  copying a template. The template shipped in this plugin went stale within six
+  releases — importing a module the reference project had deleted — because a
+  copy is a fork. As a handler, a fix reaches every install via `npm update`.
+- **Its palette defers to the host**: `var(--ink, fallback)`. It looks native
+  where a design system exists and finished where none does. That is what makes
+  bundling it defensible, and it only holds because `/leads` is INTERNAL — on a
+  public page the trade runs the other way.
+- **If you hand-roll a page, escape everything.** Every field came from a
+  stranger. Astro escapes interpolated values; a string template does not, and
+  the mistake is stored XSS aimed at the person who can read every enquiry.
+  Text, attributes, URLs and script bodies each need different treatment — a
+  `javascript:` URL contains no character an HTML escaper touches.
+- **Never sanitise by deleting.** Escape and show. A renderer that strips
+  suspicious content hides what the enquiry actually said, which is the one
+  thing the page exists to show you.
+
 ## Status, and the retention trap under it
 
 - **KV cannot update a value while keeping its remaining expiry.** A `put` with

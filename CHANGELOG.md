@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.1
+
+**Added — `docs/using-the-leads-page.md`**, written for whoever reads the
+enquiries rather than for a developer. What the statuses do, why "not verified"
+is not an accusation, why the contact-list export is a guardrail and not
+permission to email anyone, what to do when someone asks for their data, and
+why a downloaded CSV is not covered by the retention promise. Ships in the
+package so it can go straight into a handover.
+
+**Fixed the docs that 0.8.0 left behind.** `SECURITY.md` did not mention the
+renderer at all — the package had started building HTML from
+attacker-controlled data while its security policy was silent on it, which is
+the worst kind of documentation gap. It now scopes the four escaping functions
+and says why one would not do. The plugin's skill and template README also
+still described the copy-a-template flow.
+
 ## 0.8.0
 
 **Added — the leads page is now rendered by the package.** `handleLeadsPage`,

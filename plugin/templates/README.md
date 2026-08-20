@@ -1,5 +1,16 @@
 # Templates
 
+> **Try the bundled page first.** Since 0.8.0 the package renders `/leads`
+> itself and an install is one route:
+> ```ts
+> export const GET = astroLeadsPage(() => leadsContext()!, { siteName: 'X' });
+> ```
+> It carries the design below already, and its palette defers to the host's
+> tokens. **Taking a template instead means the page stops receiving fixes** —
+> including accessibility fixes. Do it when the owner wants to own the markup,
+> and tell them that is the trade.
+
+
 Working files from a real site, refreshed on 2026-08-21 from nurkamol.com — the
 project this package was extracted from, and its first consumer.
 
