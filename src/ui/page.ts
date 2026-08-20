@@ -54,6 +54,14 @@ export interface LeadsPageOptions {
   filter?: string;
   /** Banner flags, usually from `?deleted=1` / `?updated=1`. */
   notice?: 'deleted' | 'updated' | null;
+  /**
+   * Show the dark/light toggle. Default true.
+   *
+   * Set false on a site whose own tokens only define one theme — the button
+   * would still flip `data-theme`, and the page would come out half-restyled,
+   * which is worse than no button.
+   */
+  themeToggle?: boolean;
 }
 
 const DEFAULT_FIELDS = [
@@ -129,6 +137,40 @@ const SCRIPT = `
     form.addEventListener('submit', (e) => {
       const who = form.closest('.lead')?.querySelector('.name')?.textContent?.trim() || 'this enquiry';
       if (!confirm('Delete the enquiry from ' + who + '?\\n\\nThis cannot be undone.')) e.preventDefault();
+    });
+  }
+})();
+`;
+
+/**
+ * The theme handler, shipped only when the toggle is.
+ *
+ * Kept out of SCRIPT rather than guarded inside it: with `themeToggle: false`
+ * there is no button, but the code would still be present and would still
+ * write `data-theme` from a stored value — half-restyling a page whose host
+ * only defines one theme, with no control to put it back. A feature that is
+ * off should not ship its own code.
+ */
+const THEME_SCRIPT = `
+(() => {
+  /*
+   * The toggle. aria-pressed is kept in step because the button's own label
+   * never changes — a screen reader would otherwise announce "Theme" with no
+   * indication of which one is on.
+   */
+  const themeBtn = document.querySelector('[data-theme-toggle]');
+  if (themeBtn) {
+    const sync = () => {
+      const light = document.documentElement.getAttribute('data-theme') === 'light';
+      themeBtn.setAttribute('aria-pressed', String(light));
+      themeBtn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
+    };
+    sync();
+    themeBtn.addEventListener('click', () => {
+      const light = document.documentElement.getAttribute('data-theme') === 'light';
+      document.documentElement.setAttribute('data-theme', light ? 'dark' : 'light');
+      try { localStorage.setItem('leads-kit-theme', light ? 'dark' : 'light'); } catch (e) {}
+      sync();
     });
   }
 })();
@@ -219,6 +261,25 @@ export function renderLeadsPage(leads: LeadRecord[], options: LeadsPageOptions =
 <meta name="robots" content="noindex, nofollow">
 <title>Enquiries${options.siteName ? ` — ${esc(options.siteName)}` : ''}</title>
 <style${nonce}>${LEADS_CSS}${options.css ?? ''}</style>
+${
+  options.themeToggle === false
+    ? ''
+    : `<script${nonce}>
+/*
+ * Before the body renders, not after.
+ *
+ * The document ships with data-theme="dark" so that a no-JavaScript visitor
+ * gets a finished page rather than an unstyled one. Reading the stored
+ * preference in a deferred script would therefore paint dark first and flip —
+ * a flash on every single load for anyone who chose light. This is the one
+ * place a blocking inline script is the right answer.
+ */
+try {
+  var t = localStorage.getItem('leads-kit-theme');
+  if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+} catch (e) { /* storage blocked; dark is a fine answer */ }
+</script>`
+}
 </head>
 <body>
 <div class="wrap">
@@ -228,6 +289,15 @@ export function renderLeadsPage(leads: LeadRecord[], options: LeadsPageOptions =
       ${options.identity ? `<div class="who">${esc(options.identity)}</div>` : ''}
     </div>
     <div class="session">
+      ${
+        options.themeToggle === false
+          ? ''
+          : `<button class="btn theme-toggle" type="button" data-theme-toggle aria-pressed="false">
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span>Theme</span>
+      </button>`
+      }
       ${options.backHref ? `<a class="btn" href=${attr(safeUrl(options.backHref))}>&larr; Back to site</a>` : ''}
       ${logout ? `<a class="btn" href=${attr(safeUrl(logout))}>Sign out</a>` : ''}
     </div>
@@ -281,7 +351,7 @@ export function renderLeadsPage(leads: LeadRecord[], options: LeadsPageOptions =
 
   ${inbox.map(card).join('\n  ')}
 </div>
-<script${nonce}>${SCRIPT}</script>
+<script${nonce}>${SCRIPT}${options.themeToggle === false ? '' : THEME_SCRIPT}</script>
 </body>
 </html>`;
 }

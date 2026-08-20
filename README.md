@@ -111,6 +111,31 @@ owner sees it, so "works the moment it is installed" is worth more than
 "matches the brand exactly". On a public page the trade runs the other way,
 which is why nothing else in this package renders anything.
 
+### Dark by default, light on request
+
+The document is server-rendered as `data-theme="dark"`, so a visitor with no
+JavaScript gets a finished page rather than an unstyled one. A **Theme** button
+switches to light and remembers the choice.
+
+The light ramp defers to the host exactly as the dark one does
+(`var(--ink, #1a1715)`), so a project with its own light theme keeps it. Every
+default pair was measured: all clear 4.5:1, including the delete control on all
+three surfaces.
+
+The stored preference is read in a **blocking inline script before `<body>`**.
+A deferred read would paint dark and then flip — a flash on every load for
+anyone who chose light. This is the one place a blocking script earns its
+place.
+
+It is scoped to `[data-theme]` and deliberately **not** to
+`prefers-color-scheme`: the page is server-rendered dark, so honouring the
+media query would repaint on first paint for anyone on a light system, and the
+control here is an explicit choice rather than a guess about the OS.
+
+Pass `themeToggle: false` on a site whose tokens define only one theme — that
+removes the button *and* the script, so nothing can write `data-theme` and
+half-restyle the page.
+
 ### Hand this to whoever reads the enquiries
 
 [`docs/using-the-leads-page.md`](docs/using-the-leads-page.md) is written for

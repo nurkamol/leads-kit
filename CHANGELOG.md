@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.10.0
+
+**Added — a light theme and a toggle.** Dark stays the default and stays what a
+no-JavaScript visitor gets; a **Theme** button switches to light and remembers
+it.
+
+The light ramp defers to the host's tokens exactly as the dark one does, so a
+project with its own light theme keeps it. Every default pair was measured —
+all clear 4.5:1, including the delete control on all three surfaces.
+
+The stored preference is read in a blocking inline script **before `<body>`**. A
+deferred read paints dark and then flips, which is a flash on every load for
+anyone who chose light. Scoped to `[data-theme]` and not to
+`prefers-color-scheme`: the page is server-rendered dark, so honouring the media
+query would repaint on first paint for anyone on a light system.
+
+`themeToggle: false` removes the button **and** the handler — a feature that is
+off should not ship code that can still write `data-theme` and half-restyle a
+page whose host defines only one theme.
+
+The XSS test was rewritten around payloads rather than tag counts. It asserted
+"exactly one `<script>`" and "exactly one `<style>`", which broke the moment the
+page legitimately gained a second script and some `<svg>` icons. A security test
+that fails whenever the page grows is one that gets weakened rather than read;
+it now asserts no script or style contains attacker-supplied text.
+
+169 tests, up from 163.
+
 ## 0.9.0
 
 **Added — `npx leads-kit init`.** One command in an existing Astro or Next
