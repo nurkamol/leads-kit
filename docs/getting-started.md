@@ -2,8 +2,18 @@
 
 Adding enquiry capture and a protected reader to an existing project.
 
-Two ways. The plugin does the fitting for you and is the shorter path; by hand
-is below it, and is worth reading either way because the decisions are the same.
+**The short way:**
+
+```bash
+npx leads-kit init
+```
+
+That writes everything below. The rest of this page is what it wrote and why,
+which is worth reading either way — the decisions are the same whether a
+generator made them or you did.
+
+Or let the plugin do the fitting, which is worth it when the project is
+unusual:
 
 ```
 /plugin marketplace add nurkamol/leads-kit

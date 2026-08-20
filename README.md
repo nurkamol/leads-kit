@@ -11,13 +11,33 @@ npm install @nurkamol/leads-kit
 
 ## Start here
 
-[**docs/getting-started.md**](docs/getting-started.md) — a complete path for
-Astro on Cloudflare and for Next.js: bindings, the context module, every route,
-the two Astro settings that matter, Cloudflare Access, and how to check it
-afterwards. Every code block in it is typechecked against this package's real
-API, so it cannot drift into being subtly wrong.
+```bash
+npx leads-kit init
+```
 
-Or let the plugin do the fitting:
+Run it in an existing **Astro** or **Next** project. It reads your framework and
+your KV binding name from the config already there, writes the context module
+and every route, and prints what is left for you to decide.
+
+It **never overwrites** — a file that exists is reported and skipped, and a
+second run is not an error. It **refuses rather than guesses**: no framework
+detected, no output. And it **touches no configuration**, because bindings,
+secrets and Access are decisions or live-account operations, and a tool that
+edits your deployment config while you read its output is one you cannot trust
+the next time. `--dry-run` prints the plan and writes nothing.
+
+Then:
+
+```bash
+npx leads-kit doctor --url https://yoursite.com
+```
+
+**Longer form:** [docs/getting-started.md](docs/getting-started.md) — every
+code block in it is typechecked against this package's real API, so it cannot
+drift into being subtly wrong.
+
+**Or let the plugin do the fitting**, which is worth it when the project is
+unusual:
 
 ```
 /plugin marketplace add nurkamol/leads-kit

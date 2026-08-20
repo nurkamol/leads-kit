@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.0
+
+**Added — `npx leads-kit init`.** One command in an existing Astro or Next
+project: reads the framework and the KV binding from the config already there,
+writes the context module and every route, prints what is left for you.
+
+A generator that guesses wrong writes broken code confidently, which is worse
+than writing none — so it never overwrites, refuses rather than guesses the
+framework, and touches no configuration. Bindings, secrets and Access are
+decisions or live-account operations; a tool that edits your deployment config
+while you read its output is one you cannot trust the next time. `--dry-run`
+writes nothing.
+
+**This became possible at 0.8.0**, not before. The hardest thing to generate
+was always the PAGE — its markup, its styles, its fit with the host's design
+system — and no generator does that well. The page is bundled now, and what
+remains is boilerplate, which is exactly what a generator should write.
+
+Verified by scaffolding into a real Astro + Cloudflare project and running
+`astro check` and `astro build` on the result. That caught the relative import
+depth being derived from whether the file's BODY contained the string "leads/"
+— so two routes were right by accident and four were broken. There is now a
+test that resolves every generated import against the filesystem.
+
+163 tests, up from 149.
+
 ## 0.8.2
 
 **Added — `docs/getting-started.md`.** A complete path for Astro on Cloudflare

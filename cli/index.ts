@@ -15,6 +15,7 @@ import { toKlaviyoCsv, toMailchimpCsv, toContactsCsv } from '../src/format/conta
 import type { LeadRecord } from '../src/types.js';
 import { unwrapLeads } from './unwrap.js';
 import { report, runChecks } from './doctor.js';
+import { runInit } from './init.js';
 
 const BUILDERS: Record<string, { build: (l: LeadRecord[]) => string | Uint8Array; ext: string }> = {
   json: { build: toJson, ext: 'json' },
@@ -71,6 +72,10 @@ function fromEnvFile(key: string): string | undefined {
   return undefined;
 }
 
+if (argv[0] === 'init') {
+  process.exit(runInit(process.cwd(), { dryRun: argv.includes('--dry-run') }));
+}
+
 if (argv[0] === 'doctor') {
   const origin = flag('url');
   if (!origin) die('doctor needs --url https://example.com');
@@ -85,6 +90,11 @@ if (argv[0] === 'doctor') {
 
 if (argv[0] !== 'export' || argv.includes('--help')) {
   console.log(`leads-kit — enquiries in Workers KV
+
+  init [--dry-run]
+      Scaffold the context module and every route into an existing Astro or
+      Next project. Never overwrites; refuses rather than guessing the
+      framework; touches no configuration, and prints what is left for you.
 
   doctor --url <origin>
       Reads LEADS_EXPORT_TOKEN from the environment or .env. Do NOT pass it as
