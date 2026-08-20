@@ -8,8 +8,10 @@ import {
   handleSubjectAccess,
   handleSubmit,
   handleStatus,
+  handleLeadsPage,
   type ExportOptions,
   type SubmitOptions,
+  type LeadsPageHandlerOptions,
 } from '../index.js';
 
 /**
@@ -86,3 +88,15 @@ export const astroSubmit =
 
 export const astroStatus = (source: ContextSource<AstroLike>, redirectTo?: string) => (c: AstroLike) =>
   handleStatus(c.request, resolve(source, c), { redirectTo });
+
+/**
+ * The bundled leads page.
+ *
+ *   export const GET = astroLeadsPage(() => leadsContext()!, { siteName: 'X' });
+ *
+ * Needs `export const prerender = false` like every other route here — a
+ * prerendered leads page is a file on a CDN with every enquiry in it.
+ */
+export const astroLeadsPage =
+  (source: ContextSource<AstroLike>, options?: LeadsPageHandlerOptions) => (c: AstroLike) =>
+    handleLeadsPage(c.request, resolve(source, c), options);

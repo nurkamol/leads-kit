@@ -56,6 +56,21 @@ site. Adapt the page; the routes are thin and close to copyable.
 | Audit | `src/pages/api/leads/audit.ts` | `app/api/leads/audit/route.ts` |
 | Page | `src/pages/leads.astro` | `app/leads/page.tsx` |
 
+**Use the bundled page unless there is a reason not to.** It is one route:
+
+```ts
+export const GET = astroLeadsPage(() => leadsContext()!, { siteName: '…', backHref: '/' });
+```
+
+Its palette reads the host's tokens where they exist (`var(--ink, …)`) and
+falls back where they do not, so it looks native on a project with a design
+system and finished on one without. It also means an accessibility fix reaches
+this project through `npm update` rather than being stranded in a copy.
+
+Reach for the template in `templates/astro/leads.astro` only if the owner wants
+to own the markup — then say so, because from that point the page stops
+receiving fixes.
+
 **Set `retentionSeconds` on the context.** Not optional if you wire the status
 route: KV cannot update a value while keeping its remaining expiry, so without
 it, marking a lead "replied" silently restarts the retention clock and the

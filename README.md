@@ -29,13 +29,83 @@ package: a component that ships its own palette looks pasted in, because it is.
 /leads-view
 ```
 
-## The page is not in the package
+## The page IS in the package
 
-Deliberately. A leads page needs the host site's typography, spacing and
-colour, and there are only two ways to ship one from a package — drag a design
-system along, or look foreign everywhere it lands. The plugin adapts a
-reference implementation to the project it is being installed into, which is
-judgement work, which is why an agent does it and a codemod does not.
+```ts
+// src/pages/leads.astro  — the whole file
+---
+import { astroLeadsPage } from '@nurkamol/leads-kit/astro';
+import { leadsContext } from '../lib/leads-context';
+export const prerender = false;
+export const GET = astroLeadsPage(() => leadsContext()!, {
+  siteName: 'Your Site',
+  backHref: '/',
+});
+---
+```
+
+That renders the screenshot: a filterable list, status controls, delete,
+exports, a summary, and an empty state — Access-verified, `no-store`, 404 when
+the session does not check out.
+
+### Why, when nothing else visual is
+
+Because the copy rotted. The page shipped as a template you adapted, and within
+six releases the shipped copy still imported a module the reference project had
+deleted, while its docs described an API two features out of date. A copy is a
+fork, and a fork rots quietly. As a handler it cannot: a fix to the markup — an
+accessibility fix above all — reaches every install through `npm update`
+instead of sitting in one repo while forty others keep the bug.
+
+The usual objection is that bundling a UI couples every install to one design.
+That is answered by the palette rather than waved away:
+
+```css
+--lk-ink: var(--ink, #f0e3de);
+```
+
+The host's token wins where it exists; the fallback fires where it does not. So
+the page looks native on a project with a design system and finished on one
+without. A default, not a decision. Every default pair clears WCAG AA —
+measured, including the delete control, whose obvious red came out at 4.20:1
+and was replaced.
+
+And it applies **here specifically because `/leads` is internal**. Only the
+owner sees it, so "works the moment it is installed" is worth more than
+"matches the brand exactly". On a public page the trade runs the other way,
+which is why nothing else in this package renders anything.
+
+### If you want the markup
+
+`renderLeadsPage(leads, options)` returns the HTML string, and the plugin still
+ships the Astro component. `ejectLeadsPage` is the same function under a name
+that says what you are doing. Nothing here is a one-way door.
+
+### The risk this took on
+
+Astro escapes interpolated values; a string template does not. Every field on
+that page is attacker-controlled, so bundling the renderer moved it out from
+under that protection — and a mistake would be stored XSS aimed at the one
+person who can read every enquiry.
+
+`src/ui/escape.ts` is the answer, and a test feeds a deliberately hostile record
+through the whole renderer: `<script>` in the name, an `onerror` payload in the
+email, a `javascript:` URL, tags that try to close the card early. It asserts
+the document contains exactly one `<script>` and one `<article>`, that no tag
+carries an inline handler, and that the content is still **present and
+readable** — a renderer that "sanitises" by deleting is one that hides what the
+enquiry actually said.
+
+## What the package still will not render
+
+The **contact form**. That one is public, sits inside your layout, and has to
+carry your type scale and spacing — the argument that fails for an internal
+admin page holds completely for a page your customers see. `handleSubmit`
+accepts whatever markup you write; the form itself is yours.
+
+Nor a component library, a layout, or anything else with a look. `/leads` is
+the exception because it is the one screen where nobody but the owner is
+looking.
 
 ## Use it
 

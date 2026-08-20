@@ -8,8 +8,10 @@ import {
   handleSubjectAccess,
   handleSubmit,
   handleStatus,
+  handleLeadsPage,
   type ExportOptions,
   type SubmitOptions,
+  type LeadsPageHandlerOptions,
 } from '../index.js';
 
 /**
@@ -99,3 +101,8 @@ export const nextSubmit = (source: ContextSource, options?: SubmitOptions) => (r
 
 export const nextStatus = (source: ContextSource, redirectTo?: string) => (request: Request) =>
   handleStatus(request, resolve(source, request), { redirectTo });
+
+/** The bundled leads page. Set `export const dynamic = 'force-dynamic'`. */
+export const nextLeadsPage =
+  (source: ContextSource, options?: LeadsPageHandlerOptions) => (request: Request) =>
+    handleLeadsPage(request, resolve(source, request), options);

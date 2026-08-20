@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.8.0
+
+**Added — the leads page is now rendered by the package.** `handleLeadsPage`,
+plus `astroLeadsPage` / `nextLeadsPage`. An install is one route:
+
+```ts
+export const GET = astroLeadsPage(() => leadsContext()!, { siteName: 'X' });
+```
+
+Filterable list, status controls, delete, exports, summary, empty state.
+Access-verified, `no-store`, 404 — not 403 — when the session does not check
+out, and it fails closed when Access is not configured at all.
+
+**Why, having argued the opposite for seven releases:** the copy rotted. The
+page shipped as a template you adapted, and within six releases the shipped
+template still imported a module the reference project had deleted while its
+docs described an API two features out of date. A copy is a fork. As a handler
+it cannot drift, and an accessibility fix now reaches every install through
+`npm update` rather than sitting in one repo while forty keep the bug.
+
+The coupling objection is answered by the palette, not waved away: every colour
+reads `var(--host-token, fallback)`, so the page looks native where a design
+system exists and finished where none does. And it applies here specifically
+because `/leads` is internal — on a public page the trade runs the other way,
+which is why the contact form is still yours to write.
+
+**The risk it took on, and how it is held:** Astro escapes interpolated values;
+a string template does not, and every field on that page is
+attacker-controlled. `src/ui/escape.ts` covers text, attributes, URLs
+(scheme allow-list — `javascript:` contains no character an HTML escaper
+touches) and script context. A test feeds a hostile record through the whole
+renderer and asserts one `<script>`, one `<article>`, no inline handlers on any
+tag — and that the content is still readable, because a renderer that
+sanitises by deleting hides what the enquiry said.
+
+Also sends a restrictive `Content-Security-Policy`, with an optional `nonce`.
+
+`renderLeadsPage` / `ejectLeadsPage` return the HTML if you would rather own
+the markup. The plugin still ships the Astro component.
+
+147 tests, up from 126.
+
 ## 0.7.2
 
 **Fixed** — `summarise().unverified` counted `not-configured`, which means the

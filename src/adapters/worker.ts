@@ -8,6 +8,7 @@ import {
   handleSubjectAccess,
   handleSubmit,
   handleStatus,
+  handleLeadsPage,
 } from '../index.js';
 
 /**
@@ -34,6 +35,7 @@ export function leadsRouter(
         clientAddress: request.headers.get('cf-connecting-ip') ?? undefined,
       });
     }
+    if (path === '/leads') return handleLeadsPage(request, ctx);
     if (path === `${base}/status`) {
       return handleStatus(request, ctx, { redirectTo: '/leads/?updated=1' });
     }
