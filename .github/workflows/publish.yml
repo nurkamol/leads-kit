@@ -55,4 +55,9 @@ jobs:
       # a provenance attestation tying it to this commit and this workflow —
       # so anyone can verify the published artefact came from this repo rather
       # than from someone's laptop.
-      - run: npm publish
+      # --provenance here rather than in publishConfig: provenance can only be
+      # generated from a supported CI, so putting it in package.json applies it
+      # to every publish including the FIRST manual one — which has to happen
+      # before a trusted publisher can be configured at all, since you cannot
+      # configure one for a package that does not exist yet.
+      - run: npm publish --provenance
