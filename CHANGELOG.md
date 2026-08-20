@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0
+
+**Added — notifier builders.** Resend, Brevo, Postmark, MailChannels, Slack, a
+generic webhook, and `allNotifiers` to combine them. Still zero dependencies:
+each is one `fetch` against a documented JSON API, and an SDK would add a
+package and a supply-chain surface in exchange for wrapping one POST.
+
+The `Notifier` interface is three lines, so these are not there to save typing.
+They exist because the same decisions get made badly in every hand-rolled
+version: `reply_to` set to the ENQUIRER rather than the site, a timeout so a
+hanging provider does not hang the form POST, and throwing on a non-2xx —
+because a provider answering 401 and treated as success means notifications
+stop silently and nobody learns until a client asks why they were ignored.
+
+`allNotifiers` uses `allSettled`: a broken Slack webhook must not stop the
+email that actually matters. Slack sends `plain_text`, since the message is
+built from visitor input and Slack renders `mrkdwn` — including injected links
+and `@channel`. `webhookNotifier` takes a `fields` list, because a webhook is
+an export and every field included leaves your infrastructure permanently.
+
+97 tests, up from 88.
+
 ## 0.4.0
 
 **Added — lead status.** `new` / `replied` / `archived` / `spam`, with

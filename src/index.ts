@@ -25,3 +25,4 @@ export * from './handlers/gdpr.js';
 export * from './handlers/audit.js';
 export * from './handlers/status.js';
 export * from './write/index.js';
+export * from './notify/providers.js';

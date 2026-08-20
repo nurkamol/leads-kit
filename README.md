@@ -193,6 +193,51 @@ Pass only an address your runtime vouches for (`clientAddress`,
 overwrites it: an attacker sets those, so every request gets a fresh bucket and
 the limit is decorative while still looking present.
 
+## Notifiers
+
+The `Notifier` interface is three lines, so these builders are not there to
+save you writing it. They exist because the same handful of decisions gets made
+badly in every hand-rolled version:
+
+```ts
+import { resendNotifier, slackNotifier, allNotifiers } from '@nurkamol/leads-kit';
+
+notify: allNotifiers(
+  resendNotifier(env.RESEND_API_KEY, {
+    from: 'hello@yoursite.com', fromName: 'Your Site', to: 'you@gmail.com',
+  }),
+  slackNotifier(env.SLACK_WEBHOOK),
+),
+```
+
+Available: `resendNotifier`, `brevoNotifier`, `postmarkNotifier`,
+`mailChannelsNotifier`, `slackNotifier`, `webhookNotifier` (n8n, Zapier, Make,
+your own), and `allNotifiers` to combine them. No dependencies — each is one
+`fetch` against a documented JSON API.
+
+**What they get right that a quick version usually doesn't:**
+
+- **`reply_to` is the enquirer, not the site.** This is the most useful line in
+  any of them: it turns "reply" into a reply to the person, rather than an
+  email to yourself that you then copy an address out of.
+- **A timeout.** A form POST is waiting on this; a hanging provider must not
+  become a hanging site.
+- **A non-2xx throws, carrying the provider's own message.** A provider that
+  answers 401 and is treated as success means notifications stop silently, and
+  nobody finds out until a client asks why they were ignored. The body usually
+  contains the one line that fixes it — "sender not verified", most often.
+- **`allNotifiers` uses `allSettled`, not `all`.** A broken Slack webhook must
+  not stop the email that actually matters.
+- **Slack sends `plain_text`, not `mrkdwn`.** The message is built from visitor
+  input, and Slack will happily render an injected link or an `@channel`.
+- **`webhookNotifier` takes a `fields` list.** A webhook is an export: every
+  field you include leaves your infrastructure permanently, so sending the
+  whole record — IP address included — to a third party should be a decision.
+
+⚠ **MailChannels** needs a DKIM-signed domain and an SPF record naming it, and
+silently drops mail without them rather than erroring. A 202 there is not proof
+of delivery; check the inbox once.
+
 ## Lead status
 
 Before this, the only two things you could do with a lead were read it and

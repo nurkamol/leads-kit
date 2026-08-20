@@ -43,6 +43,11 @@ export const lead = (over = {}) => ({
   country: 'UZ',
   verification: 'passed',
   env: 'live',
+  /* Real records carry these — handleSubmit always writes them — and they are
+     precisely the fields a webhook must not leak by default. A fixture without
+     them lets a test about what leaves your infrastructure pass vacuously. */
+  userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+  ip: '203.0.113.7',
   ...over,
 });
 
