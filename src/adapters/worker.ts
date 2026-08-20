@@ -1,5 +1,12 @@
 import type { LeadsContext } from '../types.js';
-import { handleContacts, handleDelete, handleExport } from '../index.js';
+import {
+  handleAudit,
+  handleContacts,
+  handleDelete,
+  handleErasure,
+  handleExport,
+  handleSubjectAccess,
+} from '../index.js';
 
 /**
  * A bare Cloudflare Worker (or Deno, or Bun, or Hono — all the same shape).
@@ -20,6 +27,9 @@ export function leadsRouter(
       return handleDelete(request, ctx, { redirectTo: '/leads/?deleted=1' });
     }
     if (path === `${base}/contacts.csv`) return handleContacts(request, ctx);
+    if (path === `${base}/subject`) return handleSubjectAccess(request, ctx);
+    if (path === `${base}/erase`) return handleErasure(request, ctx);
+    if (path === `${base}/audit`) return handleAudit(request, ctx);
     if (path === base || path === `${base}.csv` || path === `${base}.json`) {
       const format = path.endsWith('.csv') ? 'csv' : path.endsWith('.json') ? 'json' : undefined;
       return handleExport(request, ctx, format ? { format } : {});

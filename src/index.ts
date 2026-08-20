@@ -21,3 +21,5 @@ export * from './handlers/keys.js';
 export * from './handlers/export.js';
 export * from './handlers/delete.js';
 export * from './handlers/stats.js';
+export * from './handlers/gdpr.js';
+export * from './handlers/audit.js';

@@ -28,12 +28,20 @@ export interface KVNamespaceLike {
  */
 export function kvStore(kv: KVNamespaceLike): LeadStore {
   return {
-    async list(prefix) {
+    async list(prefix, opts) {
       const names: string[] = [];
       let cursor: string | undefined;
       do {
         const page = await kv.list({ prefix, cursor, limit: 1000 });
-        for (const key of page.keys) names.push(key.name);
+        for (const key of page.keys) {
+          /* Keys sort lexicographically and carry the timestamp first, so a
+             "since" filter is a range skip rather than a full read of every
+             value. On a namespace with years of enquiries this is the
+             difference between listing keys and fetching every record. */
+          if (opts?.startAfter && key.name < opts.startAfter) continue;
+          if (opts?.endBefore && key.name >= opts.endBefore) continue;
+          names.push(key.name);
+        }
         cursor = page.list_complete ? undefined : page.cursor;
       } while (cursor);
       return names;

@@ -10,15 +10,17 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { toCsv, toJson, toMarkdown, toXml } from '../src/format/records.js';
+import { toXlsx } from '../src/format/xlsx.js';
 import { toKlaviyoCsv, toMailchimpCsv, toContactsCsv } from '../src/format/contacts.js';
 import type { LeadRecord } from '../src/types.js';
 import { unwrapLeads } from './unwrap.js';
 
-const BUILDERS: Record<string, { build: (l: LeadRecord[]) => string; ext: string }> = {
+const BUILDERS: Record<string, { build: (l: LeadRecord[]) => string | Uint8Array; ext: string }> = {
   json: { build: toJson, ext: 'json' },
   csv: { build: toCsv, ext: 'csv' },
   xml: { build: toXml, ext: 'xml' },
   md: { build: toMarkdown, ext: 'md' },
+  xlsx: { build: toXlsx, ext: 'xlsx' },
   mailchimp: { build: toMailchimpCsv, ext: 'csv' },
   klaviyo: { build: toKlaviyoCsv, ext: 'csv' },
   contacts: { build: toContactsCsv, ext: 'csv' },

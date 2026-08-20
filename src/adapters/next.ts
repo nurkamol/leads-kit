@@ -1,5 +1,13 @@
 import type { LeadsContext } from '../types.js';
-import { handleContacts, handleDelete, handleExport, type ExportOptions } from '../index.js';
+import {
+  handleAudit,
+  handleContacts,
+  handleDelete,
+  handleErasure,
+  handleExport,
+  handleSubjectAccess,
+  type ExportOptions,
+} from '../index.js';
 
 /**
  * Next.js App Router route handlers.
@@ -64,3 +72,12 @@ export function checkOrigin(request: Request, allowedOrigin: string): Response |
   if (origin === allowedOrigin) return null;
   return new Response('Cross-site POST form submissions are forbidden\n', { status: 403 });
 }
+
+export const nextSubjectAccess = (source: ContextSource) => (request: Request) =>
+  handleSubjectAccess(request, resolve(source, request));
+
+export const nextErasure = (source: ContextSource) => (request: Request) =>
+  handleErasure(request, resolve(source, request));
+
+export const nextAudit = (source: ContextSource) => (request: Request) =>
+  handleAudit(request, resolve(source, request));

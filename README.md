@@ -114,6 +114,69 @@ const store: LeadStore = {
 };
 ```
 
+## Data-subject requests
+
+Someone can ask what you hold about them and ask you to delete it. Under GDPR
+you have a month; under CCPA, 45 days. Neither regime cares that it is "just a
+contact form" — a name, an address and free text about their situation is
+personal data.
+
+```ts
+GET  /api/leads/subject?email=someone@example.com     // everything you hold
+POST /api/leads/erase   { email, confirm: email }      // delete all of it
+GET  /api/leads/audit?limit=50                         // who did what, newest first
+```
+
+Erasure needs `confirm` to equal `email`, because unlike deleting one enquiry
+it takes an unbounded number of records with it and you may not know how many.
+Both operations are audited — including the *read*, since "who looked this
+person up" is a question worth being able to answer.
+
+The audit records store the email's **domain**, never the address. A trail that
+keeps a second copy of what it just erased has undone the erasure it records.
+
+### Retention
+
+```ts
+import { sweepExpired } from '@nurkamol/leads-kit';
+
+await sweepExpired(ctx, 365, { dryRun: true });   // report, touch nothing
+await sweepExpired(ctx, 365);                     // then actually sweep
+```
+
+`expirationTtl` only covers records written *after* you started setting it.
+Anything stored before has none, and KV keeps a value without one forever —
+those records will outlive the privacy notice that promised they would not, and
+nothing will ever flag it. Run this from a Cron Trigger.
+
+Dry run first, always. A cutoff computed in the wrong unit is not something to
+discover afterwards.
+
+## Filtering
+
+```
+/api/leads.csv?since=2026-01-01&limit=100
+/api/leads.csv?q=redesign
+/api/leads.xlsx?email=someone@example.com
+```
+
+Date bounds become a **key range**, not a filter applied after reading — the
+key format puts the timestamp first precisely so this works. Where no
+value-level filter is present, `limit` applies to the key list, so it saves
+reads rather than trimming results.
+
+`q` cannot be pushed down: KV has no index, so the value must be read to be
+searched. That one is honestly a scan, and is documented as one rather than
+made to look cheap.
+
+## Formats
+
+| | |
+| --- | --- |
+| `csv` `json` `xml` `md` | the records, as they are |
+| `xlsx` | a real workbook. A CSV in Excel turns `+998901234567` into scientific notation and strips leading zeros from ids — and none of that looks like an error to whoever opens it |
+| `mailchimp` `klaviyo` `contacts` | contact lists — read the consent note below |
+
 ## CLI
 
 ```bash

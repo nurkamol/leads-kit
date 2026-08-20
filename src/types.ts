@@ -39,10 +39,37 @@ export interface LeadRecord {
  * only works on one host and says so nowhere.
  */
 export interface LeadStore {
-  list(prefix: string): Promise<string[]>;
+  /**
+   * Keys under a prefix, in lexicographic order.
+   *
+   * The bounds exist so that a date filter is a KEY RANGE rather than a read
+   * of every record. The key format puts the timestamp first precisely to make
+   * that possible — see `leadKey`.
+   *
+   * Both are inclusive of `startAfter` and exclusive of `endBefore`, matching
+   * the `since`/`until` semantics of LeadQuery so the two cannot drift.
+   *
+   * A store that cannot honour them may ignore them: the handlers filter again
+   * afterwards, so ignoring them costs performance and never correctness.
+   */
+  list(prefix: string, opts?: { startAfter?: string; endBefore?: string }): Promise<string[]>;
   get(key: string): Promise<LeadRecord | null>;
   put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
   delete(key: string): Promise<void>;
+}
+
+/** Narrowing applied to a read. Every field is optional; all of them AND. */
+export interface LeadQuery {
+  /** ISO timestamp. Records at or after it. */
+  since?: string;
+  /** ISO timestamp. Records strictly before it. */
+  until?: string;
+  /** Case-insensitive substring, matched across name, email, service, message. */
+  q?: string;
+  /** Exact email match, case-insensitive. The one a DSAR needs. */
+  email?: string;
+  /** Stop after this many. Applied last, after every other filter. */
+  limit?: number;
 }
 
 /** What a handler needs to do its job. Assembled by the adapter. */

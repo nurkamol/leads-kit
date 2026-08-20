@@ -2,13 +2,21 @@ import type { LeadsContext } from '../types.js';
 import { guard } from '../auth/guard.js';
 import { CONTACT_FORMATS, isContactFormat } from '../format/contacts.js';
 import { DEFAULT_COLUMNS, toCsv, toJson, toMarkdown, toXml } from '../format/records.js';
-import { prefixOf, readAllLeads } from './keys.js';
+import { toXlsx } from '../format/xlsx.js';
+import { prefixOf, queryFromUrl, readLeads } from './keys.js';
 
+/* `build` returns a string for the text formats and bytes for xlsx. Response
+   accepts both, so nothing branches on it beyond the type header. */
 const BUILDERS = {
   csv: { build: toCsv, type: 'text/csv; charset=utf-8', ext: 'csv' },
   json: { build: toJson, type: 'application/json; charset=utf-8', ext: 'json' },
   xml: { build: toXml, type: 'application/xml; charset=utf-8', ext: 'xml' },
   md: { build: toMarkdown, type: 'text/markdown; charset=utf-8', ext: 'md' },
+  xlsx: {
+    build: toXlsx,
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ext: 'xlsx',
+  },
 } as const;
 
 export type ExportFormat = keyof typeof BUILDERS;
@@ -43,7 +51,10 @@ export async function handleExport(
     );
   }
 
-  const leads = await readAllLeads(ctx.store, prefixOf(ctx));
+  /* ?since / ?until / ?q / ?email / ?limit. Filtering here rather than in the
+     caller means a limit stops the fetch loop instead of trimming the result —
+     the point of a limit is the reads it avoids. */
+  const leads = await readLeads(ctx.store, prefixOf(ctx), queryFromUrl(url));
   const { build, type, ext } = BUILDERS[requested as ExportFormat];
   const stamp = new Date().toISOString().slice(0, 10);
 
@@ -73,7 +84,7 @@ export async function handleContacts(request: Request, ctx: LeadsContext): Promi
     );
   }
 
-  const leads = await readAllLeads(ctx.store, prefixOf(ctx));
+  const leads = await readLeads(ctx.store, prefixOf(ctx), queryFromUrl(new URL(request.url)));
   const stamp = new Date().toISOString().slice(0, 10);
 
   return new Response(CONTACT_FORMATS[requested].build(leads), {

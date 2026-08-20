@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.2.0
+
+**Added — data-subject requests.** `handleSubjectAccess` returns everything
+held about one address (GDPR Art. 15, CCPA "right to know"); `handleErasure`
+deletes it (Art. 17). Both audited — including the *read*, because "who looked
+this person up" is a question a regulator asks and a log that only records
+destruction answers half of it. Erasure requires `confirm` to equal `email`,
+since unlike a single delete it takes an unbounded number of records with it.
+
+**Added — retention sweep.** `sweepExpired()` deletes leads past a retention
+period. `expirationTtl` only applies to records written after it was
+introduced; everything stored before that has none, and KV keeps a value
+without one forever. Those records outlive the privacy notice that promised
+they would not, and nothing flags it. Supports `dryRun`, and throws on a
+non-positive retention period rather than computing a cutoff of "now" and
+taking everything.
+
+**Added — audit reader.** `readAudit` / `handleAudit`. We had been writing
+`audit:` records since the delete handler existed and nothing could read them.
+A log nobody can read is not a log; it is storage costs and a false sense of
+accountability.
+
+**Added — filtering.** `?since` `?until` `?q` `?email` `?limit` on the export
+routes. Date bounds are pushed into the KV key range rather than filtered after
+reading, which is what the timestamp-first key format was always for. Where no
+value-level filter is present, `limit` applies to the key list, so it saves
+reads rather than trimming results.
+
+**Added — xlsx.** A real workbook, still zero dependencies. A CSV opened in
+Excel turns `+998901234567` into scientific notation and strips leading zeros
+from ids, and none of that looks like an error to whoever opens it. Header row
+frozen.
+
+**Changed — `readAllLeads` no longer loads everything by default.** Handlers
+call `readLeads(store, prefix, query)`. The old behaviour loaded every record
+into memory; a Worker has 128MB, and the failure was an isolate killed
+mid-request with no message mentioning memory.
+
+**Added** — `SECURITY.md`, and 30 more tests (49 total), including the first
+coverage of `handleDelete` — previously untested, and the irreversible one.
+
 ## 0.1.2
 
 **Fixed** — the CLI refused the response shape its own reference implementation

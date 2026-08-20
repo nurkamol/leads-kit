@@ -1,5 +1,13 @@
 import type { LeadsContext } from '../types.js';
-import { handleContacts, handleDelete, handleExport, type ExportOptions } from '../index.js';
+import {
+  handleAudit,
+  handleContacts,
+  handleDelete,
+  handleErasure,
+  handleExport,
+  handleSubjectAccess,
+  type ExportOptions,
+} from '../index.js';
 
 /**
  * Astro API routes.
@@ -47,3 +55,12 @@ export const astroContacts = (source: ContextSource<AstroLike>) => (c: AstroLike
 
 export const astroDelete = (source: ContextSource<AstroLike>, redirectTo?: string) => (c: AstroLike) =>
   handleDelete(c.request, resolve(source, c), { redirectTo });
+
+export const astroSubjectAccess = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
+  handleSubjectAccess(c.request, resolve(source, c));
+
+export const astroErasure = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
+  handleErasure(c.request, resolve(source, c));
+
+export const astroAudit = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
+  handleAudit(c.request, resolve(source, c));
