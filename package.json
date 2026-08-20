@@ -1,6 +1,6 @@
 {
   "name": "@nurkamol/leads-kit",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "Contact-form enquiries in Workers KV, read back safely — Cloudflare Access auth, audited delete, and CSV/JSON/XML/Mailchimp/Klaviyo exports. Framework-free.",
   "keywords": [
     "cloudflare",
