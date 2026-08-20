@@ -6,6 +6,7 @@ import {
   handleErasure,
   handleExport,
   handleSubjectAccess,
+  handleSubmit,
 } from '../index.js';
 
 /**
@@ -27,6 +28,11 @@ export function leadsRouter(
       return handleDelete(request, ctx, { redirectTo: '/leads/?deleted=1' });
     }
     if (path === `${base}/contacts.csv`) return handleContacts(request, ctx);
+    if (path === `${base}/submit` || path === '/api/contact') {
+      return handleSubmit(request, ctx, {
+        clientAddress: request.headers.get('cf-connecting-ip') ?? undefined,
+      });
+    }
     if (path === `${base}/subject`) return handleSubjectAccess(request, ctx);
     if (path === `${base}/erase`) return handleErasure(request, ctx);
     if (path === `${base}/audit`) return handleAudit(request, ctx);

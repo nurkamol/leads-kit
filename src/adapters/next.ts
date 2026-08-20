@@ -6,7 +6,9 @@ import {
   handleErasure,
   handleExport,
   handleSubjectAccess,
+  handleSubmit,
   type ExportOptions,
+  type SubmitOptions,
 } from '../index.js';
 
 /**
@@ -81,3 +83,15 @@ export const nextErasure = (source: ContextSource) => (request: Request) =>
 
 export const nextAudit = (source: ContextSource) => (request: Request) =>
   handleAudit(request, resolve(source, request));
+
+/**
+ * The submit route.
+ *
+ * Next has no `clientAddress`; on Vercel the trustworthy value is
+ * `x-forwarded-for`'s FIRST entry, which the platform overwrites — but only
+ * because the platform sits in front. Pass it explicitly via options rather
+ * than having this guess, because on a self-hosted deployment behind an
+ * arbitrary proxy that same header is whatever the client typed.
+ */
+export const nextSubmit = (source: ContextSource, options?: SubmitOptions) => (request: Request) =>
+  handleSubmit(request, resolve(source, request), options);

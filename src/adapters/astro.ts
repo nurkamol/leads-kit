@@ -6,7 +6,9 @@ import {
   handleErasure,
   handleExport,
   handleSubjectAccess,
+  handleSubmit,
   type ExportOptions,
+  type SubmitOptions,
 } from '../index.js';
 
 /**
@@ -64,3 +66,19 @@ export const astroErasure = (source: ContextSource<AstroLike>) => (c: AstroLike)
 
 export const astroAudit = (source: ContextSource<AstroLike>) => (c: AstroLike) =>
   handleAudit(c.request, resolve(source, c));
+
+/**
+ * The submit route.
+ *
+ * `clientAddress` is Astro's — the runtime's own view of who connected. Never
+ * read it from a forwarded-for header: those are attacker-controlled, so a
+ * rate limit keyed on one gives every request a fresh bucket while still
+ * looking present in the code.
+ */
+export const astroSubmit =
+  (source: ContextSource<AstroLike & { clientAddress?: string }>, options?: SubmitOptions) =>
+  (c: AstroLike & { clientAddress?: string }) =>
+    handleSubmit(c.request, resolve(source, c), {
+      clientAddress: c.clientAddress,
+      ...options,
+    });

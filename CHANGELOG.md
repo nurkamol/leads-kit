@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.3.0
+
+**Added — the write path.** `handleSubmit` accepts a submission end to end:
+cross-origin refusal, honeypot, rate limit, Turnstile, validation, store,
+notify. Until now the package could only read leads, so every project
+re-implemented the half where the security decisions live.
+
+The ORDER is the deliverable. Each step sits where it does for a reason that a
+status-code test cannot see — a reordered version returns identical statuses
+and is wrong — so the suite asserts the order directly: a cross-origin POST
+with a malformed body must be 403 and not 400; the honeypot must spend no
+network call; the store `put` must be observed before the notifier.
+
+**Turnstile**, with the outage rule: a bad token is refused, but a timeout, a
+5xx or Cloudflare's own `internal-error` stores the lead flagged `unavailable`.
+`acceptWithoutToken` defaults to `true` — a challenge cannot mint a token
+without JavaScript, and `false` silently refuses every enquiry if the widget
+fails to load.
+
+**Rate limiting**, fixed-window, KV-backed, failing OPEN when the store is
+unreachable — a storage blip must not be indistinguishable from abuse. Refuses
+to key on an absent identifier rather than falling back to a header an attacker
+controls.
+
+**Validation** takes a schema, because the fields and select options belong to
+the site. What is baked in is the phone rule: 7–15 digits per E.164, never a
+10-digit US rule that rejects every UK, Irish and Australian visitor with an
+error they cannot act on.
+
+**Notification is an interface**, not a provider. An email provider is a
+business decision with a price attached, and baking one in makes every install
+inherit it.
+
+74 tests, up from 49.
+
 ## 0.2.0
 
 **Added — data-subject requests.** `handleSubjectAccess` returns everything

@@ -114,6 +114,85 @@ const store: LeadStore = {
 };
 ```
 
+## Accepting submissions
+
+`handleSubmit` is the write path. **The order of its steps is the point of the
+function** — every one is placed where it is for a reason invisible in a
+status-code test, and a reordered version passes the same tests while being
+wrong.
+
+```ts
+// src/pages/api/contact.ts
+import { kvStore } from '@nurkamol/leads-kit';
+import { astroSubmit } from '@nurkamol/leads-kit/astro';
+
+export const prerender = false;
+
+export const POST = astroSubmit(
+  ({ locals }) => ({ store: kvStore(locals.runtime.env.LEADS) }),
+  {
+    schema: {
+      name: { required: true, minLength: 2, maxLength: 100 },
+      email: { required: true, type: 'email' },
+      phone: { type: 'phone' },
+      budget: { oneOf: BUDGET_OPTIONS },
+      message: { maxLength: 4000 },
+    },
+    turnstile: { secret: env.TURNSTILE_SECRET_KEY },
+    rateLimit: { limit: 5, windowSeconds: 600 },
+    retentionSeconds: 365 * 24 * 60 * 60,
+    notify: async (lead) => { /* your provider, ~20 lines of fetch */ },
+    redirects: { success: '/?sent=1#contact', invalid: '/?invalid=', honeypot: '/#contact' },
+  },
+);
+```
+
+| Step | Placed there because |
+| --- | --- |
+| 1. Cross-origin | **Before parsing.** Ordered after, it only ever fires on submissions that were being rejected anyway — present in the code, protecting nothing |
+| 2. Honeypot | Free and local. No network round trip on a request already known to be a bot |
+| 3. Rate limit | One store read; cheaper than siteverify |
+| 4. Turnstile | A network call, so last of the refusals — and before validation, so a refusal never depends on the payload being well-formed |
+| 5. Validate | |
+| 6. **Store** | Durable first |
+| 7. Notify | Third party last. Its failure is logged, never fatal |
+
+### Four decisions worth knowing about
+
+**Caught spam must not land on your success URL.** That URL is usually the
+conversion — analytics fires `generate_lead` on it for the no-JS path. Send
+caught spam there and any bot running JavaScript inflates the only conversion
+the site owns, silently, in a shape that looks like the site doing unusually
+well. Nobody investigates that. Hence the separate `honeypot` redirect.
+
+**A Turnstile outage stores the lead.** A bad token is refused — that is what
+the widget is for. But a timeout, a 5xx, or Cloudflare's own `internal-error`
+means you learnt *nothing* about the submission, and refusing there means an
+outage silently costs real enquiries. Those are stored and flagged
+`unavailable`, so they are visibly different from ones that passed.
+
+**`acceptWithoutToken` defaults to `true`.** A challenge cannot mint a token
+without JavaScript. With `false`, a no-JS visitor cannot submit at all — and if
+the widget ever fails to load, *every* enquiry is refused silently. It does not
+disable Turnstile: a supplied token is still verified and a bad one still
+refused. Set it to `false` only once you have confirmed the widget mints tokens
+for real visitors.
+
+**Phone validation is country-agnostic**: 7–15 digits, per E.164. A 10-digit
+rule is a US rule, and shipping one silently rejects every UK, Irish and
+Australian visitor with an error they cannot act on, because their number is
+correct.
+
+### Rate limiting
+
+Fixed window, keyed on the identifier you pass — and it **fails open** if the
+store is unreachable, the same judgement as the Turnstile outage rule.
+
+Pass only an address your runtime vouches for (`clientAddress`,
+`cf-connecting-ip`). Never a forwarded-for header on a deployment where nothing
+overwrites it: an attacker sets those, so every request gets a fresh bucket and
+the limit is decorative while still looking present.
+
 ## Data-subject requests
 
 Someone can ask what you hold about them and ask you to delete it. Under GDPR
