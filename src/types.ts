@@ -11,6 +11,21 @@
  * at once and nothing fails until deploy.
  */
 
+/**
+ * Where an enquiry has got to.
+ *
+ * Four, not more. A status list grows into a workflow engine the moment it has
+ * six, and this is an inbox — the only question it answers is "does this still
+ * need me". `spam` is separate from `archived` because they mean different
+ * things to whoever reads the list next: one was dealt with, the other should
+ * never have arrived.
+ */
+export type LeadStatus = 'new' | 'replied' | 'archived' | 'spam';
+
+export const LEAD_STATUSES: readonly LeadStatus[] = ['new', 'replied', 'archived', 'spam'];
+export const isLeadStatus = (v: unknown): v is LeadStatus =>
+  typeof v === 'string' && (LEAD_STATUSES as readonly string[]).includes(v);
+
 /** One enquiry. Extra fields survive: the formatters read what they are given. */
 export interface LeadRecord {
   id: string;
@@ -26,6 +41,15 @@ export interface LeadRecord {
   country?: string;
   /** How the bot challenge went, if there is one. See the note in README. */
   verification?: string;
+  /**
+   * Where this enquiry has got to. Absent on records written before statuses
+   * existed, which is why every reader treats absent as `new` rather than
+   * requiring a migration.
+   */
+  status?: LeadStatus;
+  /** When the status last changed, and who changed it. */
+  statusAt?: string;
+  statusBy?: string;
   env?: string;
   [key: string]: unknown;
 }
@@ -68,6 +92,8 @@ export interface LeadQuery {
   q?: string;
   /** Exact email match, case-insensitive. The one a DSAR needs. */
   email?: string;
+  /** Only these statuses. Absent status counts as `new`. */
+  status?: LeadStatus | LeadStatus[];
   /** Stop after this many. Applied last, after every other filter. */
   limit?: number;
 }
@@ -84,6 +110,15 @@ export interface LeadsContext {
   auditPrefix?: string;
   /** Seconds to keep an audit record. Default 400 days. */
   auditTtl?: number;
+  /**
+   * Retention for lead records, in seconds.
+   *
+   * Needed by every write that REWRITES a record — a status change, most
+   * obviously. KV has no way to update a value while keeping its remaining
+   * TTL, so a naive `put` restarts the clock and a lead touched on day 364
+   * survives another full year. See `remainingTtl`.
+   */
+  retentionSeconds?: number;
 }
 
 export const DEFAULT_PREFIX = 'lead:';

@@ -1,5 +1,6 @@
 import {
   DEFAULT_PREFIX,
+  isLeadStatus,
   type LeadQuery,
   type LeadRecord,
   type LeadsContext,
@@ -37,6 +38,14 @@ export function matches(lead: LeadRecord, query: LeadQuery): boolean {
     if (String(lead.email ?? '').trim().toLowerCase() !== query.email.trim().toLowerCase()) {
       return false;
     }
+  }
+
+  if (query.status) {
+    const wanted = Array.isArray(query.status) ? query.status : [query.status];
+    /* Absent counts as `new`: records written before statuses existed must not
+       vanish from a filtered view, which would read as data loss. */
+    const actual = isLeadStatus(lead.status) ? lead.status : 'new';
+    if (!wanted.includes(actual)) return false;
   }
 
   if (query.q) {
@@ -116,7 +125,9 @@ export const readAllLeads = (store: LeadStore, prefix = DEFAULT_PREFIX): Promise
 export function queryFromUrl(url: URL): LeadQuery {
   const p = url.searchParams;
   const limit = Number(p.get('limit'));
+  const statuses = (p.get('status') ?? '').split(',').map((v) => v.trim()).filter(isLeadStatus);
   return {
+    status: statuses.length ? statuses : undefined,
     since: p.get('since') ?? undefined,
     until: p.get('until') ?? undefined,
     q: p.get('q') ?? undefined,

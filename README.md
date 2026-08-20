@@ -193,6 +193,39 @@ Pass only an address your runtime vouches for (`clientAddress`,
 overwrites it: an attacker sets those, so every request gets a fresh bucket and
 the limit is decorative while still looking present.
 
+## Lead status
+
+Before this, the only two things you could do with a lead were read it and
+destroy it — which makes the list a viewer rather than an inbox, and means the
+only way to clear something is to delete it. Deleting a real enquiry to tidy a
+list is how you lose the record of a client you won.
+
+```
+POST /api/leads/status  { id, status }     new | replied | archived | spam
+GET  /api/leads.csv?status=new             filter by it
+```
+
+Four statuses, not more: a status list becomes a workflow engine at six, and
+the only question this answers is "does this still need me". `spam` is separate
+from `archived` because they mean different things to whoever reads the list
+next — one was dealt with, the other should never have arrived.
+
+`summarise()` gains `unanswered` and `byStatus`. `unanswered` is the figure
+worth putting at the top of a page; "12 total" is trivia.
+
+### One trap worth knowing about
+
+**KV cannot update a value while keeping its remaining expiry.** A `put` with
+no TTL removes the expiry; a `put` with your retention period restarts it. So
+marking a lead "replied" on day 364 would silently grant it another full year —
+the record outlives the promise on your privacy page, and nothing reports it,
+because from outside it is just a record that has not expired yet.
+
+`setLeadStatus` computes what is LEFT from the original `receivedAt`, so a
+status change can never extend retention. Pass `retentionSeconds` on the
+context for that to work. If the period has already elapsed the write is
+refused rather than resurrecting a record that was due to go.
+
 ## Data-subject requests
 
 Someone can ask what you hold about them and ask you to delete it. Under GDPR

@@ -1,4 +1,4 @@
-import type { LeadRecord } from '../types.js';
+import { isLeadStatus, type LeadRecord, type LeadStatus } from '../types.js';
 
 export interface LeadStats {
   total: number;
@@ -6,6 +6,14 @@ export interface LeadStats {
   month: number;
   /** Enquiries whose bot challenge did not definitively pass. */
   unverified: number;
+  /**
+   * Still needing an answer — `new`, plus anything with no status at all.
+   *
+   * This is the figure worth putting at the top of a page. "12 total" is
+   * trivia; "3 unanswered" is the reason to look.
+   */
+  unanswered: number;
+  byStatus: Record<LeadStatus, number>;
 }
 
 /**
@@ -20,11 +28,16 @@ export function summarise(leads: LeadRecord[], now = Date.now()): LeadStats {
   const day = 24 * 60 * 60 * 1000;
   const since = (n: number) =>
     leads.filter((l) => new Date(String(l.receivedAt)).getTime() >= now - n * day).length;
+  const byStatus: Record<LeadStatus, number> = { new: 0, replied: 0, archived: 0, spam: 0 };
+  for (const lead of leads) byStatus[isLeadStatus(lead.status) ? lead.status : 'new']++;
+
   return {
     total: leads.length,
     week: since(7),
     month: since(30),
     unverified: leads.filter((l) => l.verification !== undefined && l.verification !== 'passed')
       .length,
+    unanswered: byStatus.new,
+    byStatus,
   };
 }

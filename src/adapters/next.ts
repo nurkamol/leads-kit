@@ -7,6 +7,7 @@ import {
   handleExport,
   handleSubjectAccess,
   handleSubmit,
+  handleStatus,
   type ExportOptions,
   type SubmitOptions,
 } from '../index.js';
@@ -95,3 +96,6 @@ export const nextAudit = (source: ContextSource) => (request: Request) =>
  */
 export const nextSubmit = (source: ContextSource, options?: SubmitOptions) => (request: Request) =>
   handleSubmit(request, resolve(source, request), options);
+
+export const nextStatus = (source: ContextSource, redirectTo?: string) => (request: Request) =>
+  handleStatus(request, resolve(source, request), { redirectTo });

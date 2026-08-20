@@ -7,6 +7,7 @@ import {
   handleExport,
   handleSubjectAccess,
   handleSubmit,
+  handleStatus,
 } from '../index.js';
 
 /**
@@ -32,6 +33,9 @@ export function leadsRouter(
       return handleSubmit(request, ctx, {
         clientAddress: request.headers.get('cf-connecting-ip') ?? undefined,
       });
+    }
+    if (path === `${base}/status`) {
+      return handleStatus(request, ctx, { redirectTo: '/leads/?updated=1' });
     }
     if (path === `${base}/subject`) return handleSubjectAccess(request, ctx);
     if (path === `${base}/erase`) return handleErasure(request, ctx);

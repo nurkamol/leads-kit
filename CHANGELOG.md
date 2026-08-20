@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.4.0
+
+**Added — lead status.** `new` / `replied` / `archived` / `spam`, with
+`handleStatus`, `?status=` filtering, and `unanswered` + `byStatus` on
+`summarise()`. Until now the only two things you could do with a lead were read
+it and destroy it, so the only way to clear one was to delete it — and deleting
+a real enquiry to tidy a list is how you lose the record of a client you won.
+
+Four statuses, not more. A status list becomes a workflow engine at six, and
+the only question this answers is "does this still need me".
+
+**The hard part was retention, not the field.** KV cannot update a value while
+keeping its remaining expiry: a `put` without a TTL removes the expiry, and one
+with the retention period restarts it. Marking a lead "replied" on day 364
+would have granted it another full year — outliving the promise on the privacy
+page, with nothing to report it, because from outside it is simply a record
+that has not expired yet.
+
+`remainingTtl()` counts down from the original `receivedAt`, so a status change
+can never extend retention, and a lead already past its period is refused
+rather than resurrected. `LeadsContext` gains `retentionSeconds` for this.
+
+An absent status counts as `new` everywhere — filtering, summarising, display —
+so records written before this release do not vanish from a filtered view,
+which would read as data loss.
+
+POST rather than PATCH: this has to work from a plain `<form>`, and a form can
+only issue GET or POST.
+
+88 tests, up from 76.
+
 ## 0.3.1
 
 **Fixed** — `redirects.invalid` could not carry an anchor. It was a string with

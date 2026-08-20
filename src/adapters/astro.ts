@@ -7,6 +7,7 @@ import {
   handleExport,
   handleSubjectAccess,
   handleSubmit,
+  handleStatus,
   type ExportOptions,
   type SubmitOptions,
 } from '../index.js';
@@ -82,3 +83,6 @@ export const astroSubmit =
       clientAddress: c.clientAddress,
       ...options,
     });
+
+export const astroStatus = (source: ContextSource<AstroLike>, redirectTo?: string) => (c: AstroLike) =>
+  handleStatus(c.request, resolve(source, c), { redirectTo });
