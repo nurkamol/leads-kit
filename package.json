@@ -1,7 +1,7 @@
 {
   "name": "@nurkamol/leads-kit",
   "version": "0.7.3",
-  "description": "Contact-form enquiries in Workers KV, read back safely — Cloudflare Access auth, audited delete, and CSV/JSON/XML/Mailchimp/Klaviyo exports. Framework-free.",
+  "description": "Contact-form enquiries in Workers KV, read back safely \u2014 Cloudflare Access auth, audited delete, and CSV/JSON/XML/Mailchimp/Klaviyo exports. Framework-free.",
   "keywords": [
     "cloudflare",
     "workers",
@@ -59,7 +59,8 @@
     "build": "rm -rf dist && tsc",
     "test": "node --test test/*.test.js",
     "prepublishOnly": "npm run build && npm test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "version": "node scripts/sync-plugin-version.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
