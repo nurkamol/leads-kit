@@ -53,6 +53,37 @@ The traps in this feature, collected. Every one of them shipped green.
 - **Mailchimp text merge fields cap near 255 characters** and truncate quietly,
   so a long enquiry message does not belong in an audience import.
 
+## Status, and the retention trap under it
+
+- **KV cannot update a value while keeping its remaining expiry.** A `put` with
+  no TTL removes the expiry; a `put` with the retention period restarts it. So
+  marking a lead "replied" on day 364 silently grants it another full year —
+  the record outlives the promise on the privacy page, and nothing reports it,
+  because from outside it is indistinguishable from a record that has not
+  expired yet. Compute what is LEFT from `receivedAt`, and refuse the write if
+  the period has already elapsed rather than resurrecting it.
+- **Absent means `new`.** Records written before statuses existed have no
+  field, and treating that as unknown makes them vanish from a filtered view —
+  which reads as data loss and sends someone hunting a bug in the store.
+- **POST, not PATCH.** The controls have to work from a plain `<form>`, and a
+  form can only issue GET or POST.
+- **An unchanged status is a no-op.** Re-submitting the same value must not
+  rewrite the record, or it touches the TTL for nothing.
+
+## Spam signals
+
+- **Score, never block.** Every signal has a false-positive case involving a
+  real customer: a developer pasting staging URLs, someone typing fast, a
+  person submitting twice because the first reply never came. Admitting spam
+  costs a message you delete; refusing a client costs the client, and you never
+  find out. Those are not comparable.
+- **A whole message in another script is a customer, not a signal.**
+- **Short messages are exempt from duplicate detection.** "Can you help with a
+  website?" is a sentence two different customers will both write.
+- **A count that never differs from the total is noise.** `not-configured` is
+  not an unverified lead, it is a site with no challenge at all — counting it
+  makes the warning permanent and teaches the reader to ignore the line.
+
 ## Storage
 
 - **Set an `expirationTtl`.** KV keeps a value forever otherwise, and
@@ -63,6 +94,15 @@ The traps in this feature, collected. Every one of them shipped green.
 
 ## Verifying
 
-Against the deployed site. A green build proves the bundler ran. The
-forged-header and forged-cookie cases are the ones worth re-running every time
-the auth path is touched.
+Against the deployed site — a green build proves the bundler ran.
+
+`npx leads-kit doctor --url https://host` covers the whole surface, including
+the forged-assertion cases. It reads the token from the environment or `.env`;
+never pass it as a flag, because `npm run` echoes the command and the secret
+ends up in the scrollback and in CI logs.
+
+**Testing `/leads` directly proves nothing.** Access intercepts at the edge, so
+`curl -L` lands on its login page with a 200 — which looks like a failure if
+you are checking for 404 and like a pass if you are checking "not the leads
+page". The API routes are not covered by Access, so those are what exercise the
+verification.

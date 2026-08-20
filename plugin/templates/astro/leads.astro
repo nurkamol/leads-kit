@@ -23,15 +23,26 @@
  * Until step 3, this page is a 404 even with Access in front — which is the
  * safe order to fail in.
  */
-import { verifyAccess } from '../lib/access';
-import { readAllLeads } from '../lib/leads-export';
+import { LEAD_STATUSES, readAllLeads, statusOf, summarise, verifyAccess } from '@nurkamol/leads-kit';
+import { leadsContext } from '../lib/leads-context';
 import { configValue } from '../lib/runtime';
-import { business } from '../data/business';
-/* The real ramp. This page is a standalone document — it does not use the
-   site's layout — but that is no reason to restate the palette: `npm run tells`
-   fails a component containing raw hex, and it is right to. Importing tokens
-   means a colour change reaches this page too. */
-import '../styles/tokens.css';
+
+/*
+ * The two things this page needs to know about the site it lives on. Point
+ * them at your own config — `business.name`, an env var, whatever you have.
+ */
+const SITE_NAME = 'Your Site';
+const LOCALE = 'en';
+/*
+ * NO stylesheet import, on purpose.
+ *
+ * This page is a standalone document — it does not use the site's layout — and
+ * it carries its own palette below, defined so that it DEFERS to the host's
+ * where the host has one. See the `--lk-*` block in the <style>.
+ *
+ * If your project has a token file, importing it here is better still: then a
+ * colour change reaches this page too, and the fallbacks simply never fire.
+ */
 
 export const prerender = false;
 
@@ -48,21 +59,40 @@ if (!identity) {
   });
 }
 
-const leads = (await readAllLeads()) ?? [];
+const ctx = leadsContext();
+const leads = ctx ? await readAllLeads(ctx.store) : [];
 /* Newest first — the opposite of the export, because a person opening this is
    looking for what just came in, not reading a ledger from the beginning. */
 const rows = [...leads].reverse();
 
-/* Cheap summary from the records already in memory. Nothing here needs a
-   second KV read, which is why it is worth having at all. */
-const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-const stats = {
-  total: rows.length,
-  week: rows.filter((l) => new Date(l.receivedAt).getTime() >= weekAgo).length,
-  unverified: rows.filter((l) => l.verification !== 'passed').length,
-};
+/* Summary from the records already in memory — no second KV read, which is
+   why it is worth having at all. `summarise` takes the instant rather than
+   reading the clock, so every figure is computed against the same moment;
+   deriving "last 7 days" twice either side of midnight is how two lines of a
+   summary come to disagree. */
+const stats = summarise(leads, Date.now());
 
 const deleted = Astro.url.searchParams.get('deleted') === '1';
+const updated = Astro.url.searchParams.get('updated') === '1';
+
+/*
+ * The status filter is a real query parameter, not a JavaScript toggle.
+ *
+ * Which means it survives a reload, it can be bookmarked, and the buttons
+ * below are ordinary links — so the page keeps working with no bundle, same
+ * as the delete form. `?status=` with no value means everything.
+ */
+const filter = Astro.url.searchParams.get('status') ?? '';
+const visible = filter ? rows.filter((l) => statusOf(l) === filter) : rows;
+
+/* Archived and spam are hidden from the default view. They have been dealt
+   with, and an inbox that never shrinks is one nobody reads. They are one
+   click away, and the counts are always shown. */
+const inbox = filter ? visible : visible.filter((l) => !['archived', 'spam'].includes(statusOf(l)));
+
+const statusLabel: Record<string, string> = {
+  new: 'New', replied: 'Replied', archived: 'Archived', spam: 'Spam',
+};
 
 const fmt = (iso: string) => {
   const d = new Date(iso);
@@ -71,92 +101,147 @@ const fmt = (iso: string) => {
 ---
 
 <!doctype html>
-<html lang={business.locale} data-theme="dark">
+<html lang={LOCALE} data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     {/* Never indexed, never cached by anything in between. */}
     <meta name="robots" content="noindex, nofollow, noarchive" />
-    <title>Enquiries — {business.name}</title>
+    <title>Enquiries — {SITE_NAME}</title>
     <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
     <style is:inline>
+      /*
+       * ── PALETTE ─────────────────────────────────────────────────────────
+       * Every value reads the HOST's token first and falls back to its own.
+       * On a project that defines `--ink`, this page inherits it and looks
+       * native. On one that defines nothing, it still looks finished.
+       *
+       * That is the whole trick, and it is why this page can ship WITH a
+       * design without coupling anyone to it: `var(--ink, <fallback>)` is a
+       * default, not a decision. Delete the fallbacks once your project has
+       * its own tokens and you want a colour change to reach this page.
+       *
+       * /leads is an INTERNAL admin page — only the owner sees it — so
+       * "works the moment it is installed" is worth more here than "matches
+       * the brand exactly". On a public page the trade goes the other way,
+       * which is why the rest of the UI is not in this package.
+       */
+      :root {
+        --lk-ink: var(--ink, #f0e3de);
+        --lk-muted: var(--muted, #b0a49f);
+        --lk-bg: var(--bg, #151414);
+        --lk-surface: var(--surface, #201f1e);
+        --lk-surface2: var(--surface2, #282625);
+        --lk-line: var(--line, #332f2d);
+        --lk-accent: var(--accent, #f58634);
+        --lk-accent2: var(--accent2, #e2b04a);
+        /* #e5484d was the obvious choice and it fails: 4.20:1 on --surface,
+           under AA for normal text. Measured, not assumed. This clears it on
+           both surfaces the delete control sits on. */
+        --lk-danger: var(--danger, #ff6b6b);
+        --lk-print-paper: var(--print-paper, #ffffff);
+        --lk-print-ink: var(--print-ink, #111111);
+        --lk-print-ink-soft: var(--print-ink-soft, #555555);
+        --lk-print-rule: var(--print-rule, #cccccc);
+        --lk-print-rule-soft: var(--print-rule-soft, #e6e6e6);
+      }
+
       :root { color-scheme: dark; }
       * { box-sizing: border-box; }
-      body { margin:0; background:var(--bg); color:var(--ink);
-             font:15px/1.55 'DM Sans', system-ui, sans-serif; }
+      body { margin:0; background:var(--lk-bg); color:var(--lk-ink);
+             font:15px/1.55 var(--font-body, system-ui, -apple-system, 'Segoe UI', sans-serif); }
       .wrap { max-width:1100px; margin:0 auto; padding:28px 20px 80px; }
       header { display:flex; flex-wrap:wrap; gap:12px; align-items:baseline;
                justify-content:space-between; margin-bottom:6px; }
-      h1 { font:600 22px/1.2 'Space Grotesk', system-ui, sans-serif; margin:0; letter-spacing:-.02em; }
-      .who { color:var(--muted); font-size:13px; }
+      h1 { font:600 22px/1.2 var(--font-display, system-ui, -apple-system, 'Segoe UI', sans-serif); margin:0; letter-spacing:-.02em; }
+      .who { color:var(--lk-muted); font-size:13px; }
       .session { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
       /* The buttons here are secondary to the data — same shape as the
          download controls, no accent fill competing with the content. */
       .session .btn { min-height:36px; font-size:12px; }
       .tools { display:flex; gap:10px; flex-wrap:wrap; margin:18px 0 20px; }
-      input[type=search] { flex:1; min-width:220px; background:var(--surface);
-        border:1px solid var(--line); color:var(--ink); border-radius:10px;
+      input[type=search] { flex:1; min-width:220px; background:var(--lk-surface);
+        border:1px solid var(--lk-line); color:var(--lk-ink); border-radius:10px;
         padding:10px 14px; font:inherit; font-size:14px; }
       input[type=search]:focus-visible, a:focus-visible, button:focus-visible, details:focus-visible
-        { outline:3px solid var(--accent); outline-offset:2px; }
+        { outline:3px solid var(--lk-accent); outline-offset:2px; }
       .btn { display:inline-flex; align-items:center; min-height:40px; padding:0 14px;
-        border:1px solid var(--line); border-radius:10px; background:var(--surface);
-        color:var(--ink); font:inherit; font-size:13px; font-weight:600;
+        border:1px solid var(--lk-line); border-radius:10px; background:var(--lk-surface);
+        color:var(--lk-ink); font:inherit; font-size:13px; font-weight:600;
         text-decoration:none; cursor:pointer; }
-      .btn:hover { border-color:var(--accent); }
-      .count { color:var(--muted); font-size:13px; margin-bottom:14px; }
-      .lead { border:1px solid var(--line); border-radius:14px; background:var(--surface);
+      .btn:hover { border-color:var(--lk-accent); }
+      .count { color:var(--lk-muted); font-size:13px; margin-bottom:14px; }
+      .lead { border:1px solid var(--lk-line); border-radius:14px; background:var(--lk-surface);
         padding:16px 18px; margin-bottom:12px; }
       .lead[hidden] { display:none; }
       .top { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; }
       .name { font-weight:600; font-size:16px; }
-      .when { color:var(--muted); font-size:13px; margin-left:auto; }
+      .when { color:var(--lk-muted); font-size:13px; margin-left:auto; }
       dl { display:grid; grid-template-columns:max-content 1fr; gap:2px 14px;
            margin:10px 0 0; font-size:13.5px; }
-      dt { color:var(--muted); } dd { margin:0; }
-      a { color:var(--accent); }
+      dt { color:var(--lk-muted); } dd { margin:0; }
+      a { color:var(--lk-accent); }
       .msg { white-space:pre-wrap; margin-top:12px; padding-top:12px;
-             border-top:1px solid var(--line); font-size:14px; }
+             border-top:1px solid var(--lk-line); font-size:14px; }
       .tag { display:inline-block; font-size:11px; letter-spacing:.04em; text-transform:uppercase;
-             border:1px solid var(--line); border-radius:999px; padding:2px 8px; color:var(--muted); }
+             border:1px solid var(--lk-line); border-radius:999px; padding:2px 8px; color:var(--lk-muted); }
       /* Derived from the ramp rather than picked: a lead that skipped or could
          not complete the challenge is a caution, not an error. */
       .tag[data-v="unverified"], .tag[data-v="unavailable"] {
-        color: var(--accent2);
-        border-color: color-mix(in srgb, var(--accent2) 40%, var(--line));
+        color: var(--lk-accent2);
+        border-color: color-mix(in srgb, var(--lk-accent2) 40%, var(--lk-line));
       }
-      .empty { color:var(--muted); padding:40px 0; }
-      .notice { border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
-        background:color-mix(in srgb, var(--accent) 10%, transparent);
+      .empty { color:var(--lk-muted); padding:40px 0; }
+      .notice { border:1px solid color-mix(in srgb, var(--lk-accent) 45%, var(--lk-line));
+        background:color-mix(in srgb, var(--lk-accent) 10%, transparent);
         border-radius:12px; padding:12px 16px; margin:0 0 14px; font-size:13.5px; }
       .stats { display:flex; flex-wrap:wrap; gap:8px 20px; margin:0 0 10px;
-        color:var(--muted); font-size:13px; }
-      .stats strong { color:var(--ink); font-weight:600; }
-      .stats__warn strong { color:var(--accent2); }
+        color:var(--lk-muted); font-size:13px; }
+      .stats strong { color:var(--lk-ink); font-weight:600; }
+      .stats__warn strong { color:var(--lk-accent2); }
+      .filters { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+      .chip { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:999px;
+        border:1px solid var(--lk-line); color:var(--lk-muted); text-decoration:none; font-size:12.5px;
+        min-height:34px; }
+      .chip span { color:var(--lk-ink); font-weight:600; }
+      .chip:hover { border-color:var(--lk-muted); }
+      .chip[aria-current="page"] { border-color:var(--lk-accent); color:var(--lk-ink);
+        background:color-mix(in srgb, var(--lk-accent) 12%, transparent); }
+      .statuses { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+      .btn--chip { min-height:32px; font-size:12px; padding:0 12px; }
+      .tag--status[data-s="new"] { border-color:color-mix(in srgb, var(--lk-accent) 50%, var(--lk-line));
+        color:var(--lk-accent); }
+      .tag--status[data-s="replied"] { opacity:.75; }
+      .tag--status[data-s="archived"], .tag--status[data-s="spam"] { opacity:.55; }
+      .tag--spam { border-color:color-mix(in srgb, var(--lk-danger) 45%, var(--lk-line)); color:var(--lk-danger); }
+      /* The filter is navigation and the status buttons are actions — neither
+         belongs on a printed record of enquiries. */
+      @media print { .filters, .statuses { display:none; } }
+
       .menu { position:relative; }
       .menu summary { list-style:none; cursor:pointer; user-select:none; }
       .menu summary::-webkit-details-marker { display:none; }
       .menu__panel { position:absolute; z-index:5; top:calc(100% + 6px); left:0; min-width:250px;
-        background:var(--surface2); border:1px solid var(--line); border-radius:12px;
+        background:var(--lk-surface2); border:1px solid var(--lk-line); border-radius:12px;
         padding:6px; box-shadow:0 12px 30px rgb(0 0 0 / .28); }
       .menu__item { display:block; padding:9px 12px; border-radius:8px; font-size:13px;
-        color:var(--ink); text-decoration:none; }
-      .menu__item:hover, .menu__item:focus-visible { background:var(--line); }
-      .menu__warn { margin:6px 6px 2px; padding-top:8px; border-top:1px solid var(--line);
-        color:var(--muted); font-size:11.5px; line-height:1.5; }
-      .menu__warn strong { color:var(--accent2); font-weight:600; }
+        color:var(--lk-ink); text-decoration:none; }
+      .menu__item:hover, .menu__item:focus-visible { background:var(--lk-line); }
+      .menu__warn { margin:6px 6px 2px; padding-top:8px; border-top:1px solid var(--lk-line);
+        color:var(--lk-muted); font-size:11.5px; line-height:1.5; }
+      .menu__warn strong { color:var(--lk-accent2); font-weight:600; }
       @media (max-width:520px) { .menu__panel { left:auto; right:0; } }
 
       .danger { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-        margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
-      .danger__hint { color:var(--muted); font-size:12px; }
+        margin-top:14px; padding-top:12px; border-top:1px solid var(--lk-line); }
+      .danger__hint { color:var(--lk-muted); font-size:12px; }
       /* Outlined, not filled. A destructive control should be findable and
          unmistakable, not the brightest thing on the page — a red block beside
          every enquiry turns the list into a minefield. */
-      .btn--danger { min-height:34px; font-size:12px; color:var(--danger);
-        border-color:color-mix(in srgb, var(--danger) 45%, var(--line)); }
-      .btn--danger:hover { border-color:var(--danger);
-        background:color-mix(in srgb, var(--danger) 12%, transparent); }
+      .btn--danger { min-height:34px; font-size:12px; color:var(--lk-danger);
+        border-color:color-mix(in srgb, var(--lk-danger) 45%, var(--lk-line)); }
+      .btn--danger:hover { border-color:var(--lk-danger);
+        background:color-mix(in srgb, var(--lk-danger) 12%, transparent); }
       @media (max-width:560px) { dl { grid-template-columns:1fr; } .when { margin-left:0; } }
 
       /* Screen-hidden, print-only. Declared BEFORE the @media print block:
@@ -164,7 +249,7 @@ const fmt = (iso: string) => {
          AFTER it the `display:block` inside the media query lost and the
          line never printed. Fourth time in this project that source order
          has quietly swallowed a rule. */
-      .print-note { display:none; color:var(--muted); font-size:12px; margin:0 0 14px; }
+      .print-note { display:none; color:var(--lk-muted); font-size:12px; margin:0 0 14px; }
 
       /* ── Print ──────────────────────────────────────────────────────────
          The dark ground is a screen decision. On paper it costs a cartridge
@@ -178,7 +263,7 @@ const fmt = (iso: string) => {
       @media print {
         @page { size: A4; margin: 14mm; }
         :root { color-scheme: light; }
-        body { background:var(--print-paper); color:var(--print-ink); font-size:10.5pt; }
+        body { background:var(--lk-print-paper); color:var(--lk-print-ink); font-size:10.5pt; }
         .wrap { max-width:none; padding:0; }
         /* Controls do not exist on paper. */
         /* .count duplicates what .print-note already says, with less. */
@@ -186,17 +271,17 @@ const fmt = (iso: string) => {
         .print-note { display:block; }
         h1 { font-size:16pt; }
         .lead {
-          border:1px solid var(--print-rule); background:transparent;
+          border:1px solid var(--lk-print-rule); background:transparent;
           /* Never split a lead across a page — a message continuing overleaf
              with no name attached is the thing that makes a printout useless. */
           break-inside: avoid; page-break-inside: avoid;
           margin-bottom:4mm; padding:4mm 5mm;
         }
         .name { font-size:11.5pt; }
-        .when, dt { color:var(--print-ink-soft); }
-        a { color:var(--print-ink); text-decoration:none; }
-        .tag { border-color:var(--print-rule); color:var(--print-ink-soft); }
-        .msg { border-top:1px solid var(--print-rule-soft); }
+        .when, dt { color:var(--lk-print-ink-soft); }
+        a { color:var(--lk-print-ink); text-decoration:none; }
+        .tag { border-color:var(--lk-print-rule); color:var(--lk-print-ink-soft); }
+        .msg { border-top:1px solid var(--lk-print-rule-soft); }
       }
     </style>
   </head>
@@ -263,7 +348,7 @@ const fmt = (iso: string) => {
               the form they will not be added to a mailing list, so a file that
               a mailer can import is one careless click from breaking that
               promise. The columns carry the same statement into the
-              destination — see src/lib/leads-marketing.ts.
+              destination — see the consent note in @nurkamol/leads-kit.
             */}
             <p class="menu__warn">
               One row per address, newest enquiry. <strong>No marketing consent</strong> —
@@ -274,15 +359,32 @@ const fmt = (iso: string) => {
       </div>
 
       <p class="print-note">
-        {rows.length} enquir{rows.length === 1 ? 'y' : 'ies'} · printed {new Date().toISOString().slice(0, 10)} ·
+        {inbox.length} enquir{inbox.length === 1 ? 'y' : 'ies'} · printed {new Date().toISOString().slice(0, 10)} ·
         contains personal data — handle and destroy accordingly
       </p>
 
       {deleted && (
         <p class="notice" role="status">Enquiry deleted. The action is recorded in the audit log.</p>
       )}
+      {updated && <p class="notice" role="status">Status updated.</p>}
+
+      {/*
+        Links, not buttons: the filter is a query parameter, so it survives a
+        reload and works with no JavaScript at all.
+      */}
+      <nav class="filters" aria-label="Filter by status">
+        <a class="chip" href="/leads/" aria-current={filter === '' ? 'page' : undefined}>
+          Inbox <span>{rows.filter((l) => !['archived', 'spam'].includes(statusOf(l))).length}</span>
+        </a>
+        {LEAD_STATUSES.map((st) => (
+          <a class="chip" href={`/leads/?status=${st}`} aria-current={filter === st ? 'page' : undefined}>
+            {statusLabel[st]} <span>{stats.byStatus[st]}</span>
+          </a>
+        ))}
+      </nav>
 
       <p class="stats">
+        <span><strong>{stats.unanswered}</strong> unanswered</span>
         <span><strong>{stats.total}</strong> total</span>
         <span><strong>{stats.week}</strong> in the last 7 days</span>
         {stats.unverified > 0 && (
@@ -290,18 +392,30 @@ const fmt = (iso: string) => {
         )}
       </p>
 
-      <p class="count" id="count" role="status">{rows.length} enquir{rows.length === 1 ? 'y' : 'ies'}</p>
+      <p class="count" id="count" role="status">
+        {inbox.length} enquir{inbox.length === 1 ? 'y' : 'ies'}
+        {filter ? ` · ${statusLabel[filter] ?? filter}` : rows.length !== inbox.length ? ' in the inbox' : ''}
+      </p>
 
       {rows.length === 0 && <p class="empty">Nothing yet. Submissions will appear here as they arrive.</p>}
+      {rows.length > 0 && inbox.length === 0 && (
+        <p class="empty">
+          Nothing here. {filter ? <a href="/leads/">Back to the inbox</a> : 'Everything has been dealt with.'}
+        </p>
+      )}
 
-      {rows.map((l) => (
+      {inbox.map((l) => (
         <article
           class="lead"
           data-hay={`${l.name} ${l.email} ${l.service} ${l.message} ${l.budget} ${l.timeline}`.toLowerCase()}
         >
           <div class="top">
             <span class="name">{l.name || '(no name)'}</span>
+            <span class="tag tag--status" data-s={statusOf(l)}>{statusLabel[statusOf(l)]}</span>
             <span class="tag" data-v={l.verification}>{l.verification ?? 'unknown'}</span>
+            {typeof l.spamScore === 'number' && l.spamScore >= 3 && (
+              <span class="tag tag--spam" title={String(l.spamSignals ?? '')}>spam score {l.spamScore}</span>
+            )}
             <span class="when">{fmt(l.receivedAt)}</span>
           </div>
           <dl>
@@ -330,6 +444,23 @@ const fmt = (iso: string) => {
             assumption away from arriving with no body. Paths WITH an
             extension are exempt, which is why contacts.csv above has none.
           */}
+          {/*
+            One form per status, each a plain POST — so this works with no
+            JavaScript, like the delete below it. Buttons rather than a select,
+            because a select needs a submit button anyway and this is one click.
+          */}
+          <div class="statuses">
+            {LEAD_STATUSES.filter((st) => st !== statusOf(l)).map((st) => (
+              <form method="post" action="/api/leads/status/">
+                <input type="hidden" name="id" value={l.id} />
+                <input type="hidden" name="status" value={st} />
+                <button class="btn btn--chip" type="submit">
+                  {st === 'replied' ? 'Mark replied' : st === 'new' ? 'Back to new' : `Mark ${st}`}
+                </button>
+              </form>
+            ))}
+          </div>
+
           <form class="danger" method="post" action="/api/leads/delete/" data-delete>
             <input type="hidden" name="id" value={l.id} />
             <button class="btn btn--danger" type="submit">Delete</button>
@@ -374,11 +505,22 @@ const fmt = (iso: string) => {
           });
         }
 
+        /* Restore the server's own wording when the box is cleared. Without
+           this, clearing the filter leaves "4 of 4 enquiries" and silently
+           drops the "· Spam" the server had written — so the heading would
+           stop saying which view you are looking at. */
+        const original = count.textContent;
+
         q.addEventListener('input', () => {
           const term = q.value.trim().toLowerCase();
+          if (!term) {
+            for (const el of leads) el.hidden = false;
+            count.textContent = original;
+            return;
+          }
           let shown = 0;
           for (const el of leads) {
-            const hit = !term || el.dataset.hay.includes(term);
+            const hit = el.dataset.hay.includes(term);
             el.hidden = !hit;
             if (hit) shown++;
           }

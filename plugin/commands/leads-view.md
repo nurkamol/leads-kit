@@ -41,14 +41,30 @@ npm install @nurkamol/leads-kit
 
 ## 3. Wire the routes
 
-Templates are in `${CLAUDE_PLUGIN_ROOT}/templates/`. Adapt, do not paste.
+Templates are in `${CLAUDE_PLUGIN_ROOT}/templates/` — working files from a real
+site. Adapt the page; the routes are thin and close to copyable.
 
 | | Astro | Next (App Router) |
 | --- | --- | --- |
-| Export | `src/pages/api/leads.csv.ts` | `app/api/leads/[format]/route.ts` |
+| Submit | `src/pages/api/contact.ts` | `app/api/contact/route.ts` |
+| Export | `src/pages/api/leads.{csv,json,xlsx}.ts` | `app/api/leads/[format]/route.ts` |
 | Contacts | `src/pages/api/leads/contacts.csv.ts` | `app/api/leads/contacts/route.ts` |
 | Delete | `src/pages/api/leads/delete.ts` | `app/api/leads/delete/route.ts` |
+| Status | `src/pages/api/leads/status.ts` | `app/api/leads/status/route.ts` |
+| Subject access | `src/pages/api/leads/subject.ts` | `app/api/leads/subject/route.ts` |
+| Erasure | `src/pages/api/leads/erase.ts` | `app/api/leads/erase/route.ts` |
+| Audit | `src/pages/api/leads/audit.ts` | `app/api/leads/audit/route.ts` |
 | Page | `src/pages/leads.astro` | `app/leads/page.tsx` |
+
+**Set `retentionSeconds` on the context.** Not optional if you wire the status
+route: KV cannot update a value while keeping its remaining expiry, so without
+it, marking a lead "replied" silently restarts the retention clock and the
+record outlives whatever the privacy notice promises.
+
+**Ask before wiring the GDPR routes.** They are genuinely useful — a subject
+access or erasure request has a one-month clock — but they are also the two
+endpoints that read and destroy everything about one person. The owner should
+know they exist.
 
 **Astro:** every route needs `export const prerender = false` — the default is
 a build-time render, and a prerendered endpoint is a file on a CDN containing
@@ -81,20 +97,28 @@ this machine may have more than one account configured.
 
 ## 5. Verify against the DEPLOYED site
 
-A green build proves the bundler ran. Run every one of these:
+A green build proves the bundler ran. One command does the whole surface:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -L "https://<host>/leads/"                              # 200 signed in
-curl -s -o /dev/null -w '%{http_code}\n' -H 'Cf-Access-Jwt-Assertion: forged.token.here' -L "https://<host>/leads/"
-curl -s -o /dev/null -w '%{http_code}\n' -H 'Cookie: CF_Authorization=forged.token.here' -L "https://<host>/leads/"
-curl -s -o /dev/null -w '%{http_code}\n' "https://<host>/api/leads.csv"                          # 401
-curl -s -o /dev/null -w '%{http_code}\n' "https://<host>/api/leads/delete/"                      # 405
-curl -s -X POST "https://<host>/api/leads/delete/"                                               # must be refused cross-site
+npx leads-kit doctor --url https://<host>
 ```
 
-**The forged-header cases are the ones that matter.** Presence of
-`Cf-Access-Jwt-Assertion` is not the check; if the route treats it as one, both
-return 200 and everything looks fine. They must return 404.
+It reads `LEADS_EXPORT_TOKEN` from the environment or `.env`. **Never pass it
+as `--token`** — `npm run` echoes the command it executes, so the secret would
+land in the terminal, in any CI log, and in `ps` output.
+
+It checks: export routes answering 200 anonymously · a prerendered route
+sitting in a cache · a destructive route answering GET · a cross-site POST
+reaching the handler · a forged `Cf-Access-Jwt-Assertion`, an `alg:none` token
+and a forged cookie being trusted · the admin page in the sitemap or
+robots.txt. Exits non-zero, so put it in CI after the deploy.
+
+**Do not "verify" by curling `/leads` and checking the status.** Access
+intercepts at the edge, so `curl -L` follows the redirect and lands on its
+login page with a 200 — which reads as a failure if you check for 404 and as a
+pass if you check "not the leads page". Neither answer is about the code you
+just installed. Doctor probes the API routes instead, which Access does not
+cover, so they exercise the verification itself.
 
 404, not 403 — a route serving personal data should not announce itself. For
 the same reason, exclude `/leads` from the sitemap; a permanently-404 URL in a

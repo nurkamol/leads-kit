@@ -1,6 +1,9 @@
 {
   "name": "leads-kit",
-  "owner": { "name": "Nurkamol Vakhidov", "email": "nurkamol@gmail.com" },
+  "owner": {
+    "name": "Nurkamol Vakhidov",
+    "email": "nurkamol@gmail.com"
+  },
   "metadata": {
     "description": "Contact-form enquiries in Workers KV, read back safely"
   },
@@ -8,12 +11,21 @@
     {
       "name": "leads-view",
       "source": "./plugin",
-      "description": "Add a protected /leads page — Cloudflare Access auth, audited delete, CSV/JSON/Mailchimp/Klaviyo exports — to an existing Astro, Next.js or Workers project",
-      "version": "0.1.0",
-      "author": { "name": "Nurkamol Vakhidov" },
+      "description": "Add a protected /leads page \u2014 Cloudflare Access auth, audited delete, CSV/JSON/Mailchimp/Klaviyo exports \u2014 to an existing Astro, Next.js or Workers project",
+      "version": "0.7.2",
+      "author": {
+        "name": "Nurkamol Vakhidov"
+      },
       "license": "MIT",
       "homepage": "https://github.com/nurkamol/leads-kit",
-      "keywords": ["cloudflare", "kv", "leads", "cloudflare-access", "astro", "nextjs"]
+      "keywords": [
+        "cloudflare",
+        "kv",
+        "leads",
+        "cloudflare-access",
+        "astro",
+        "nextjs"
+      ]
     }
   ]
 }
