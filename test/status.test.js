@@ -136,3 +136,24 @@ test('summarise reports what still needs an answer', () => {
   assert.equal(s.unanswered, 1, '"3 unanswered" is the number worth showing, not "12 total"');
   assert.deepEqual(s.byStatus, { new: 1, replied: 1, archived: 1, spam: 1 });
 });
+
+test('a site with no Turnstile does not report every lead as unverified', () => {
+  // `not-configured` means this deployment has no Turnstile at all. Counting
+  // it makes the figure permanently equal to the total, which tells the reader
+  // nothing and teaches them to ignore the line.
+  const rows = [
+    lead({ id: id(1), verification: 'not-configured' }),
+    lead({ id: id(2), verification: 'not-configured' }),
+  ];
+  assert.equal(summarise(rows).unverified, 0);
+});
+
+test('unverified counts the two states that actually mean something', () => {
+  const rows = [
+    lead({ id: id(1), verification: 'passed' }),
+    lead({ id: id(2), verification: 'unverified' }),   // no token was supplied
+    lead({ id: id(3), verification: 'unavailable' }),  // Cloudflare was unreachable
+    lead({ id: id(4), verification: 'not-configured' }),
+  ];
+  assert.equal(summarise(rows).unverified, 2);
+});

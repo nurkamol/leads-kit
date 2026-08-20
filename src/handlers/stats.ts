@@ -4,7 +4,16 @@ export interface LeadStats {
   total: number;
   week: number;
   month: number;
-  /** Enquiries whose bot challenge did not definitively pass. */
+  /**
+   * Enquiries that SHOULD have passed a bot challenge and did not.
+   *
+   * Counts `unverified` and `unavailable`. Deliberately excludes
+   * `not-configured`, which means this deployment has no Turnstile at all —
+   * on such a site every lead carries it, so counting them makes the figure
+   * permanently equal to the total. A number that never differs from the
+   * total tells you nothing and trains whoever reads the page to ignore it,
+   * which is worse than not showing it.
+   */
   unverified: number;
   /**
    * Still needing an answer — `new`, plus anything with no status at all.
@@ -35,8 +44,9 @@ export function summarise(leads: LeadRecord[], now = Date.now()): LeadStats {
     total: leads.length,
     week: since(7),
     month: since(30),
-    unverified: leads.filter((l) => l.verification !== undefined && l.verification !== 'passed')
-      .length,
+    unverified: leads.filter(
+      (l) => l.verification === 'unverified' || l.verification === 'unavailable',
+    ).length,
     unanswered: byStatus.new,
     byStatus,
   };

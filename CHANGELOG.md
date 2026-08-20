@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.2
+
+**Fixed** — `summarise().unverified` counted `not-configured`, which means the
+deployment has no Turnstile at all. On such a site every lead carries it, so
+the figure was permanently equal to the total — a number that never differs
+from the total tells the reader nothing and teaches them to ignore the line,
+which is worse than not showing it.
+
+Now counts only `unverified` (no token supplied) and `unavailable` (Cloudflare
+could not be reached), which are the two states that actually mean something.
+
 ## 0.7.1
 
 **Fixed — the documented way to run `doctor` printed your token.**
