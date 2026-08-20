@@ -1,7 +1,7 @@
 {
   "name": "leads-view",
   "description": "Add a protected /leads page — Cloudflare Access auth, audited delete, CSV/JSON/Mailchimp/Klaviyo exports — to an existing Astro, Next.js or Workers project",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "author": {
     "name": "Nurkamol Vakhidov"
   },
