@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.11.0
+
+**Added — `source`, so one console can read several stores and say which is
+which.** A page reading two sites' leads could show every record but not tell
+you where any of them came from. `source` renders as a tag in the card header
+beside the status, and joins the client-side search haystack, so typing an
+origin narrows the list.
+
+⚠️ **It is not `env`, and the distinction is the whole point.** `env` already
+exists, is documented as "marks the environment on the record, so staging leads
+are identifiable", and defaults to `'live'`. Folding origin into it would cost
+you the ability to tell a *staging* record of one site from a *live* record of
+another — exactly the question a shared console makes worth asking — and
+rendering `env` in the header would print "LIVE" on every row of every existing
+install while still not naming the site.
+
+`env` keeps its `'live'` default. `source` deliberately has none: a record has
+an origin worth naming only when something reads more than one store, so an
+invented default would put a tag on every row everywhere. **Existing installs
+render byte-identically** until they set it.
+
+Settable through `submit({ source })`, or written straight onto the record by a
+Worker that stores its own leads.
+
+Four tests. One of them is the reason the others are trustworthy: the first
+version of "absent when unset" asserted `doesNotMatch(/tag--source/)`, which
+passes no matter what the markup does — the stylesheet is inlined into every
+page, so the bare class name always matches the CSS rule. It now asserts
+against the rendered element.
+
 ## 0.10.0
 
 **Added — a light theme and a toggle.** Dark stays the default and stays what a
