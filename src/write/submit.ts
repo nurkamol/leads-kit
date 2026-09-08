@@ -45,6 +45,8 @@ export interface SubmitOptions {
   retentionSeconds?: number;
   /** Marks the environment on the record, so staging leads are identifiable. */
   env?: string;
+  /** Marks which source the record came from, for a console reading several. */
+  source?: string;
   /** Extra fields copied from the payload, truncated. e.g. ['page']. */
   passthrough?: readonly string[];
   /**
@@ -263,6 +265,11 @@ export async function handleSubmit(
     id: crypto.randomUUID(),
     receivedAt,
     env: options.env ?? 'live',
+    /* No default. `env` has one because every record ran SOMEWHERE; a record
+       has an origin worth naming only when something is reading more than one
+       store, and an invented default would print a tag on every existing
+       install. */
+    ...(options.source ? { source: options.source } : {}),
     ...values,
     name: values.name ?? '',
     email: values.email ?? '',

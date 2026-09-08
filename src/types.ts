@@ -56,6 +56,18 @@ export interface LeadRecord {
   /** When an identical message was first seen, if it was. */
   duplicateOf?: string;
   env?: string;
+  /**
+   * WHICH SOURCE the record came from, when one console reads more than one
+   * store — two sites sharing a page, or a form that posts from several
+   * hosts.
+   *
+   * ⚠️ NOT `env`, AND THE TWO ARE NOT INTERCHANGEABLE. `env` says WHERE IT
+   * RAN (live, staging) and defaults to 'live'; this says WHERE IT CAME FROM.
+   * Folding origin into `env` costs you the ability to tell a staging record
+   * of one site from a live record of another, which is exactly the question
+   * a shared console makes possible to ask.
+   */
+  source?: string;
   [key: string]: unknown;
 }
 

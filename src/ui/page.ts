@@ -200,7 +200,9 @@ export function renderLeadsPage(leads: LeadRecord[], options: LeadsPageOptions =
 
   const card = (l: LeadRecord) => {
     const st = statusOf(l);
-    const hay = [l.name, l.email, l.service, l.message, l.budget, l.timeline]
+    /* `source` is in the haystack so the search box filters by origin — typing
+       "forum" narrows to one site when several feed the same page. */
+    const hay = [l.name, l.email, l.service, l.message, l.budget, l.timeline, l.source]
       .map((v) => String(v ?? ''))
       .join(' ')
       .toLowerCase();
@@ -211,6 +213,25 @@ export function renderLeadsPage(leads: LeadRecord[], options: LeadsPageOptions =
     <span class="name">${esc(l.name || '(no name)')}</span>
     <span class="tag tag--status" data-s=${attr(st)}>${esc(STATUS_LABEL[st])}</span>
     <span class="tag" data-v=${attr(l.verification ?? 'unknown')}>${esc(l.verification ?? 'unknown')}</span>
+    ${
+      /*
+       * ⚠️ A HEADER TAG, NOT A `<dl>` ROW, AND ONLY WHEN IT IS SET.
+       *
+       * `source` says WHICH STORE a record came from, which matters when one
+       * page reads more than one — two sites sharing a console. That is an
+       * identity fact you scan a list for, like the status, not a detail you
+       * read after finding the record, so it belongs beside the name rather
+       * than among the fields.
+       *
+       * ⚠️ `source`, NOT `env`. `env` marks live vs staging and defaults to
+       * 'live', so rendering it here would print "LIVE" on every row of every
+       * existing install and still not say which site a record came from.
+       *
+       * Absent on every existing install, where it renders nothing at all and
+       * the page is byte-identical to before.
+       */
+      l.source ? `<span class="tag tag--source">${esc(l.source)}</span>` : ''
+    }
     ${spam ? `<span class="tag tag--spam" title=${attr(l.spamSignals ?? '')}>spam score ${esc(l.spamScore)}</span>` : ''}
     <span class="when">${esc(fmtDate(l.receivedAt))}</span>
   </div>
