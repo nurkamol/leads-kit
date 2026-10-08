@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.11.1
+
+**Fixed — the Excel button 404'd.** `leadsRouter` matched `${base}`,
+`${base}.csv` and `${base}.json`. `handleExport` has always been able to build
+five formats, and the console's own toolbar has always linked to
+`${base}.xlsx` — so **every project using the worker adapter had a dead Excel
+button**, and `.xml` and `.md` were unreachable by path too.
+
+⚠️ **IT FAILED IN THE MOST MISLEADING WAY AVAILABLE.** The browser reports
+«Failed to Download», which reads as a network fault. CSV and JSON from the
+same toolbar work, which reads as a problem with the spreadsheet rather than
+with the path. And the saved file is named `leads.xlsx` instead of
+`leads-<date>.xlsx` — because with no response there is no
+`content-disposition`, so the browser falls back to naming it from the URL.
+Nothing in any of that points at routing. If you reported a broken Excel
+export, this was it; nothing was ever wrong with the workbook.
+
+**The cause was a second list.** The extensions were spelled out in the router
+while the formats lived in `BUILDERS`, and nothing made the two agree. The
+router now derives them: `EXPORT_FORMATS` and `formatFromPath(path, base)` are
+exported from the package, and a format added to `BUILDERS` is routed the day
+it is added. Unknown extensions still return `null`, so a path the package
+does not own is still yours to route.
+
+`?format=xlsx` against the bare path always worked and still does — that is
+the workaround if you are pinned to an older version.
+
+Two tests, and the first one fails against 0.11.0 naming `.xml`: it asserts
+every format in `EXPORT_FORMATS` is routed, returns 200 and names its file by
+its own extension. Asserting only `.xlsx` would have fixed the reported
+symptom and left `.xml` and `.md` exactly as broken.
+
 ## 0.11.0
 
 **Added — `source`, so one console can read several stores and say which is

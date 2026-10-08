@@ -21,6 +21,26 @@ const BUILDERS = {
 
 export type ExportFormat = keyof typeof BUILDERS;
 
+/**
+ * Every format `handleExport` can produce.
+ *
+ * ⚠️ EXPORTED SO ROUTERS DERIVE THEIR PATHS FROM IT RATHER THAN RESTATING
+ * THEM. The worker adapter used to match `.csv` and `.json` by hand while
+ * this map held five formats and the console's toolbar linked to three. The
+ * `.xlsx` button therefore 404'd in every project using the package — and
+ * the symptom was «Failed to Download», which reads as a network fault
+ * rather than a missing route. A list that must agree with another list, and
+ * nothing to make them, is the whole defect; this removes the second list.
+ */
+export const EXPORT_FORMATS = Object.keys(BUILDERS) as readonly ExportFormat[];
+
+/** `/api/leads.xlsx` → `xlsx`; `/api/leads` or an unknown suffix → null. */
+export function formatFromPath(path: string, base: string): ExportFormat | null {
+  if (!path.startsWith(`${base}.`)) return null;
+  const ext = path.slice(base.length + 1);
+  return (EXPORT_FORMATS as readonly string[]).includes(ext) ? (ext as ExportFormat) : null;
+}
+
 export interface ExportOptions {
   /** Fixed format, or read `?format=` from the URL when omitted. */
   format?: ExportFormat;

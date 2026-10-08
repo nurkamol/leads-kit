@@ -1,5 +1,6 @@
 import type { LeadsContext } from '../types.js';
 import {
+  formatFromPath,
   handleAudit,
   handleContacts,
   handleDelete,
@@ -42,8 +43,21 @@ export function leadsRouter(
     if (path === `${base}/subject`) return handleSubjectAccess(request, ctx);
     if (path === `${base}/erase`) return handleErasure(request, ctx);
     if (path === `${base}/audit`) return handleAudit(request, ctx);
-    if (path === base || path === `${base}.csv` || path === `${base}.json`) {
-      const format = path.endsWith('.csv') ? 'csv' : path.endsWith('.json') ? 'json' : undefined;
+    /*
+     * The export, as `${base}` (format from `?format=`) or `${base}.<ext>`
+     * for any format the handler can build.
+     *
+     * ⚠️ THE EXTENSIONS COME FROM `EXPORT_FORMATS`, NOT FROM A LIST HERE.
+     * This used to spell out `.csv` and `.json` while BUILDERS held five
+     * formats and the console's own toolbar linked to `.xlsx` — so the Excel
+     * button 404'd in every project using this package, and did it in the
+     * most misleading way available: the browser says «Failed to Download»,
+     * which reads as a network fault, while CSV from the same toolbar works,
+     * which reads as a problem with the spreadsheet. Deriving the paths from
+     * the builders means a format added later is routed the day it is added.
+     */
+    const format = formatFromPath(path, base);
+    if (path === base || format) {
       return handleExport(request, ctx, format ? { format } : {});
     }
     return null;

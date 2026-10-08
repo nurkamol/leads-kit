@@ -79,3 +79,51 @@ test('a bound store still works through the same path', async () => {
   });
   assert.equal(res.status, 200);
 });
+
+/**
+ * The bug this block exists for: the worker router spelled out `.csv` and
+ * `.json` by hand while `handleExport` could build five formats and the
+ * console's own toolbar linked to `.xlsx`. So the Excel button 404'd in every
+ * project using this package.
+ *
+ * It failed in the most misleading way available. The browser reports «Failed
+ * to Download», which reads as a network fault; CSV from the same toolbar
+ * works, which reads as a problem with the spreadsheet; and the downloaded
+ * name is `leads.xlsx` rather than `leads-<date>.xlsx`, because with no
+ * response there is no content-disposition and the browser falls back to the
+ * URL path. Nothing points at routing.
+ *
+ * ⚠️ ASSERT EVERY FORMAT, NOT JUST `.xlsx`. Fixing only the reported one
+ * leaves `.xml` and `.md` dead in exactly the same way.
+ */
+test('the worker router serves every format handleExport can build', async () => {
+  const { leadsRouter } = await import('../dist/src/adapters/worker.js');
+  const { EXPORT_FORMATS } = await import('../dist/src/index.js');
+  const route = leadsRouter({ store, token: 's' });
+
+  assert.ok(EXPORT_FORMATS.includes('xlsx'), 'xlsx is a supported format');
+
+  for (const format of EXPORT_FORMATS) {
+    const res = await route(
+      new Request(`https://x.test/api/leads.${format}`, {
+        headers: { authorization: 'Bearer s' },
+      }),
+    );
+    assert.ok(res, `/api/leads.${format} must be routed, not fall through to null`);
+    assert.equal(res.status, 200, `/api/leads.${format} status`);
+    assert.match(
+      res.headers.get('content-disposition') ?? '',
+      new RegExp(`filename="leads-\\d{4}-\\d{2}-\\d{2}\\.${format}"`),
+      `/api/leads.${format} names the file by its format`,
+    );
+  }
+});
+
+test('an unknown extension is still not ours, and does not become an export', async () => {
+  const { leadsRouter } = await import('../dist/src/adapters/worker.js');
+  const route = leadsRouter({ store, token: 's' });
+  const res = await route(
+    new Request('https://x.test/api/leads.bogus', { headers: { authorization: 'Bearer s' } }),
+  );
+  assert.equal(res, null, 'the caller keeps its own routing for paths we do not own');
+});
